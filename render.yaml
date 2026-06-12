@@ -1,0 +1,30 @@
+services:
+  - type: web
+    name: ghl-shadow
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: GHL_PIT
+        sync: false   # set in Render dashboard, do NOT commit
+      - key: GHL_LOCATION_ID
+        value: 8aQHgJUX2bFYBHZ4Qizg
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ghl-shadow-db
+          property: connectionString
+      - key: WEBHOOK_SECRET
+        sync: false   # set in Render dashboard, do NOT commit
+      - key: MODE
+        value: shadow
+      - key: LOG_LEVEL
+        value: INFO
+
+databases:
+  - name: ghl-shadow-db
+    plan: free
+    databaseName: shadow
+    user: shadow

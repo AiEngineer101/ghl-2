@@ -1,0 +1,15 @@
+{
+  "type": "OpportunityUpdate",
+  "locationId": "8aQHgJUX2bFYBHZ4Qizg",
+  "opportunity_id": "REPLACE_WITH_REAL_OPP_ID",
+  "opportunity": {
+    "id": "REPLACE_WITH_REAL_OPP_ID",
+    "pipelineId": "88V9uYY6visCrtI9V0NR",
+    "pipelineStageId": "c98f59ed-7b38-4dd6-ae64-01c5a6537894",
+    "customFields": [
+      {"fieldKey": "ev_materials_verified_photos", "fieldValue": ""},
+      {"fieldKey": "dt_materials_verified", "fieldValue": ""},
+      {"fieldKey": "dt_install_scheduled", "fieldValue": "2026-06-20"}
+    ]
+  }
+}
