@@ -22,6 +22,7 @@ from handlers import (
     gate_materials_verified,
     move_prod_p05_p10,
     move_prod_p10_p20_work_started,
+    move_prod_p20_p30_work_completed,
 )
 from models import Decision, Event, Snapshot
 
@@ -32,6 +33,7 @@ HANDLERS = [
     gate_materials_verified,
     move_prod_p05_p10,
     move_prod_p10_p20_work_started,
+    move_prod_p20_p30_work_completed,
 ]
 
 

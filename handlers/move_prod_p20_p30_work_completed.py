@@ -1,0 +1,97 @@
+"""Shadow handler for WF | Move | Prod | P20->P30 Work Completed.
+
+Spec source: workflow/03-move/production/move-prod-p20-p30-work-completed.md
+- Trigger (live): Opportunity Changed, "Custom field updated: tf_work_completed"
+- IF: Pipeline=Production AND Stage in {P10, P20} AND tf_work_completed=Yes
+- DO: Move to PL_PROD / P30 (Job Completed)
+- Idempotent: skip if already at P30 or beyond
+
+Shadow-only by design — SUPPORTS_WRITE is intentionally NOT set, so even with
+WRITES_ENABLED=true globally, this handler will only log decisions and never
+write back to GHL. Live GHL workflow `WF | Move | Prod | P20→P30 Work Completed`
+(id bcaab453-8b19-4a34-81c5-b732fd95dd7a) remains the actual mover until cutover.
+"""
+from __future__ import annotations
+
+from typing import Any
+
+from handlers._common import custom_field_map, unwrap_opportunity
+
+HANDLER_ID = "move-prod-p20-p30-work-completed"
+
+# GHL pipeline/stage IDs
+PIPELINE_ID_PROD = "88V9uYY6visCrtI9V0NR"
+STAGE_ID_P10 = "7a4f2d75-f033-4971-8eed-8ca4285e639e"
+STAGE_ID_P20 = "ebef66b1-a570-412c-93b3-1be988d6a33f"
+STAGE_ID_P30 = "96f19b6d-4d85-4e66-910f-4a4f071bf9c0"
+
+ELIGIBLE_FROM_STAGES: set[str] = {STAGE_ID_P10, STAGE_ID_P20}
+STAGES_AT_OR_AFTER_P30: set[str] = {
+    STAGE_ID_P30,
+    "bb84bafb-5266-4063-b1f6-bc1ef21a0790",  # P40
+    "de0bc542-b6a0-4885-b991-18ed02b19fe7",  # P50
+}
+
+INPUT_FIELD_WORK_COMPLETED = "tf_work_completed"
+
+
+def _yes(value: Any) -> bool:
+    """Return True if a truth-flag field equals Yes (tolerates string, list, case)."""
+    if value is None:
+        return False
+    if isinstance(value, list):
+        return any(_yes(v) for v in value)
+    return str(value).strip().lower() == "yes"
+
+
+def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
+    opp = unwrap_opportunity(payload)
+    pipeline_id = opp.get("pipelineId")
+    stage_id = opp.get("pipelineStageId")
+    custom = custom_field_map(opp)
+    work_completed = custom.get(INPUT_FIELD_WORK_COMPLETED)
+
+    base = {
+        "handler_id": HANDLER_ID,
+        "target_field": "pipelineStageId",
+        "current_value": stage_id,
+    }
+
+    if pipeline_id != PIPELINE_ID_PROD:
+        return {
+            **base,
+            "decision": "no_op",
+            "reason": f"pipelineId {pipeline_id!r} is not Production ({PIPELINE_ID_PROD})",
+        }
+
+    if stage_id in STAGES_AT_OR_AFTER_P30:
+        return {
+            **base,
+            "decision": "skip_idempotent",
+            "reason": "Already at or beyond P30; no advancement needed",
+        }
+
+    if stage_id not in ELIGIBLE_FROM_STAGES:
+        return {
+            **base,
+            "decision": "no_op",
+            "reason": f"Stage {stage_id!r} not in eligible source stages (P10, P20)",
+        }
+
+    if not _yes(work_completed):
+        return {
+            **base,
+            "decision": "skip_condition_unmet",
+            "reason": f"{INPUT_FIELD_WORK_COMPLETED} != Yes (value={work_completed!r})",
+        }
+
+    from_stage_label = "P10" if stage_id == STAGE_ID_P10 else "P20"
+    return {
+        **base,
+        "decision": "would_move",
+        "target_value": STAGE_ID_P30,
+        "reason": (
+            f"At {from_stage_label} with {INPUT_FIELD_WORK_COMPLETED}=Yes — "
+            f"would move to P30 (Job Completed)"
+        ),
+    }
