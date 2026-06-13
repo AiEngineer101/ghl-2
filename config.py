@@ -15,5 +15,16 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     webhook_secret: str = ""
 
+    # Write controls. Default is read-only.
+    # writes_enabled MUST be True for any PUT/POST/PATCH to GHL.
+    # write_allowed_pipeline_ids is a comma-separated allowlist enforced inside the writer
+    # itself (defense in depth). Default: only the Production pipeline.
+    writes_enabled: bool = False
+    write_allowed_pipeline_ids: str = "88V9uYY6visCrtI9V0NR"
+
+    @property
+    def write_allowed_pipeline_id_set(self) -> set[str]:
+        return {p.strip() for p in self.write_allowed_pipeline_ids.split(",") if p.strip()}
+
 
 settings = Settings()

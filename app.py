@@ -57,7 +57,8 @@ async def healthz() -> dict[str, Any]:
     return {
         "status": "ok",
         "mode": settings.mode,
-        "writes_enabled": False,
+        "writes_enabled": settings.writes_enabled,
+        "write_allowed_pipelines": sorted(settings.write_allowed_pipeline_id_set),
         "location_id": settings.ghl_location_id,
         "handlers": [getattr(h, "HANDLER_ID", h.__name__) for h in HANDLERS],
     }
@@ -80,6 +81,22 @@ async def webhook_replay(req: Request, db: Session = Depends(get_session)) -> di
     """Replay endpoint for local testing — no secret required."""
     raw = await req.json()
     return await _process(db, raw, source="replay")
+
+
+@app.post("/admin/replay-opp/{opp_id}")
+async def admin_replay_opp(
+    opp_id: str,
+    db: Session = Depends(get_session),
+    x_webhook_secret: str | None = Header(default=None, alias="X-Webhook-Secret"),
+) -> dict[str, Any]:
+    """Synthetic event for a specific opportunity.
+
+    Fetches the opp from GHL, runs all handlers, and (if WRITES_ENABLED) executes
+    any would_move/would_stamp decisions whose handler implements execute().
+    """
+    _check_secret(x_webhook_secret)
+    payload = {"type": "AdminReplay", "opportunity_id": opp_id}
+    return await _process(db, payload, source="admin")
 
 
 @app.get("/events")
@@ -167,6 +184,8 @@ async def _process(db: Session, raw: dict[str, Any], source: str) -> dict[str, A
 
     snapshot, opp_data = await _maybe_snapshot(db, event, raw)
     decisions = _run_handlers(db, event, snapshot, opp_data)
+    if settings.writes_enabled:
+        await _maybe_execute(db, decisions, opp_data)
     db.commit()
     log.info(
         "event_id=%s opp_id=%s source=%s decisions=%s",
@@ -269,6 +288,49 @@ def _run_handlers(
         decisions.append(d)
     db.flush()
     return decisions
+
+
+async def _maybe_execute(
+    db: Session, decisions: list[Decision], opp_data: dict[str, Any]
+) -> None:
+    """For each decision whose handler supports writes and asked to act, call execute()."""
+    decision_dicts = {d.handler_id: d for d in decisions}
+    for h in HANDLERS:
+        if not getattr(h, "SUPPORTS_WRITE", False):
+            continue
+        handler_id = getattr(h, "HANDLER_ID", h.__name__)
+        d = decision_dicts.get(handler_id)
+        if not d:
+            continue
+        # Only execute on "active" decisions (would_move / would_stamp). Skip no_op etc.
+        if not str(d.decision).startswith("would_"):
+            continue
+        try:
+            result = await h.execute(opp_data, d.details or {})
+            d.executed = bool(result.get("executed"))
+            # Trim the GHL response (can be large) — keep just the applied diff.
+            trimmed = {
+                "executed": result.get("executed"),
+                "applied": result.get("applied"),
+                "reason": result.get("reason"),
+            }
+            existing_details = dict(d.details or {})
+            existing_details["execution"] = trimmed
+            d.details = existing_details
+            log.info(
+                "EXECUTED handler=%s opp_id=%s decision=%s executed=%s",
+                handler_id,
+                opp_data.get("id"),
+                d.decision,
+                result.get("executed"),
+            )
+        except Exception as exc:
+            log.exception("execute failed for handler %s", handler_id)
+            existing_details = dict(d.details or {})
+            existing_details["execution_error"] = repr(exc)
+            d.details = existing_details
+            d.executed = False
+    db.flush()
 
 
 def _check_secret(provided: str | None) -> None:
