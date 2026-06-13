@@ -1,0 +1,339 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GHL Shadow Service</title>
+<style>
+  :root {
+    --bg: #0b0d10;
+    --panel: #14181f;
+    --panel-2: #1a1f28;
+    --border: #232a35;
+    --text: #e8eaed;
+    --muted: #8b95a3;
+    --accent: #4f9eff;
+    --green: #3ddc97;
+    --yellow: #ffc857;
+    --red: #ff6b6b;
+    --gray: #5a6473;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding: 24px;
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  h1 { margin: 0 0 6px; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; }
+  .subtitle { color: var(--muted); margin-bottom: 16px; font-size: 13px; }
+  .subtitle a { color: var(--accent); text-decoration: none; }
+  .subtitle a:hover { text-decoration: underline; }
+  .header { margin-bottom: 20px; }
+  .status { display: flex; gap: 8px; flex-wrap: wrap; font-size: 13px; }
+  .pill { background: var(--panel); border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; color: var(--muted); }
+  .pill strong { color: var(--text); margin-left: 4px; }
+  .pill.ok strong { color: var(--green); }
+  .pill.warn strong { color: var(--yellow); }
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
+  .panel-head { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .panel-head h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
+  .panel-head .actions { display: flex; gap: 8px; align-items: center; }
+  .panel-head .meta { font-size: 11px; color: var(--muted); }
+  .panel-body { max-height: 420px; overflow-y: auto; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  thead { position: sticky; top: 0; background: var(--panel); z-index: 1; }
+  thead th { font-weight: 500; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  th, td { text-align: left; padding: 9px 16px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: rgba(255,255,255,0.02); }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+  .badge-would_stamp { background: rgba(79,158,255,0.15); color: var(--accent); }
+  .badge-would_move { background: rgba(61,220,151,0.15); color: var(--green); }
+  .badge-skip_idempotent { background: rgba(255,200,87,0.15); color: var(--yellow); }
+  .badge-skip_condition_unmet { background: rgba(255,200,87,0.10); color: var(--yellow); }
+  .badge-no_op { background: rgba(90,100,115,0.2); color: var(--gray); }
+  .badge-unknown { background: rgba(255,107,107,0.15); color: var(--red); }
+  .mono { font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace; font-size: 12px; }
+  .muted { color: var(--muted); }
+  .reason { color: var(--muted); font-size: 12px; max-width: 380px; }
+  button { background: var(--accent); color: white; border: none; padding: 6px 14px; border-radius: 4px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 500; }
+  button:hover { opacity: 0.9; }
+  button:disabled { opacity: 0.5; cursor: not-allowed; }
+  button.ghost { background: transparent; color: var(--muted); border: 1px solid var(--border); }
+  button.ghost:hover { color: var(--text); border-color: var(--text); }
+  textarea { width: 100%; background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 12px; font-family: ui-monospace, Menlo, monospace; font-size: 12px; min-height: 180px; resize: vertical; }
+  select { background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 4px; padding: 4px 8px; font: inherit; font-size: 12px; }
+  .replay-actions { display: flex; gap: 8px; align-items: center; padding: 0 16px 12px; }
+  .replay-body { padding: 16px; }
+  .replay-result { font-family: ui-monospace, Menlo, monospace; font-size: 11px; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 12px; max-height: 260px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; margin: 0 16px 16px; }
+  .ago { color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .empty { padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
+  .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
+  .field-change { display: flex; gap: 8px; align-items: baseline; font-size: 12px; }
+  .field-change .field-name { color: var(--muted); }
+  .field-change .arrow { color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>GHL Shadow Service</h1>
+  <div class="subtitle">
+    Read-only mirror of selected GHL workflows. No writes to CRM. ·
+    <a href="/docs" target="_blank">API docs</a> ·
+    <a href="https://dashboard.render.com/web/srv-d8mgjk37uimc738scaj0/logs" target="_blank">stdout logs (Render)</a>
+  </div>
+  <div class="status" id="status">loading…</div>
+</div>
+
+<div class="panel">
+  <div class="panel-head">
+    <h2>Recent Decisions</h2>
+    <div class="actions">
+      <span class="meta" id="decisions-count"></span>
+      <button class="ghost" onclick="loadAll()">↻ Refresh</button>
+    </div>
+  </div>
+  <div class="panel-body">
+    <table>
+      <thead><tr><th style="width:80px">Time</th><th>Handler</th><th>Decision</th><th>Field Change</th><th>Reason</th></tr></thead>
+      <tbody id="decisions-tbody"><tr><td colspan="5" class="empty">loading…</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<div class="layout">
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Recent Events</h2>
+      <span class="meta" id="events-count"></span>
+    </div>
+    <div class="panel-body">
+      <table>
+        <thead><tr><th style="width:80px">Time</th><th>Source</th><th>Type</th><th>Opp ID</th></tr></thead>
+        <tbody id="events-tbody"><tr><td colspan="4" class="empty">loading…</td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Replay a Payload</h2>
+      <select id="replay-preset" onchange="loadPreset(this.value)">
+        <option value="install_scheduled">P05 + install scheduled → would_move</option>
+        <option value="materials_present">Materials uploaded → would_stamp</option>
+        <option value="both_present">Both present → both fire</option>
+        <option value="empty">Empty → no triggers fire</option>
+        <option value="at_p10">Already at P10 → idempotent skip</option>
+      </select>
+    </div>
+    <div class="replay-body">
+      <textarea id="replay-body" spellcheck="false"></textarea>
+    </div>
+    <div class="replay-actions">
+      <button onclick="sendReplay()" id="replay-btn">▶ Send Replay</button>
+      <span class="muted" id="replay-status"></span>
+    </div>
+    <div id="replay-result" class="replay-result" style="display:none"></div>
+  </div>
+</div>
+
+<script>
+const PRESETS = {
+  install_scheduled: {
+    type: "OpportunityUpdate",
+    opportunity: {
+      id: "demo-opp-001",
+      pipelineId: "88V9uYY6visCrtI9V0NR",
+      pipelineStageId: "c98f59ed-7b38-4dd6-ae64-01c5a6537894",
+      customFields: [
+        {fieldKey: "ev_materials_verified_photos", fieldValue: ""},
+        {fieldKey: "dt_materials_verified", fieldValue: ""},
+        {fieldKey: "dt_install_scheduled", fieldValue: "2026-07-01"}
+      ]
+    }
+  },
+  materials_present: {
+    type: "OpportunityUpdate",
+    opportunity: {
+      id: "demo-opp-002",
+      pipelineId: "88V9uYY6visCrtI9V0NR",
+      pipelineStageId: "c98f59ed-7b38-4dd6-ae64-01c5a6537894",
+      customFields: [
+        {fieldKey: "ev_materials_verified_photos", fieldValue: "https://files.example.com/materials.pdf"},
+        {fieldKey: "dt_materials_verified", fieldValue: ""},
+        {fieldKey: "dt_install_scheduled", fieldValue: ""}
+      ]
+    }
+  },
+  both_present: {
+    type: "OpportunityUpdate",
+    opportunity: {
+      id: "demo-opp-003",
+      pipelineId: "88V9uYY6visCrtI9V0NR",
+      pipelineStageId: "c98f59ed-7b38-4dd6-ae64-01c5a6537894",
+      customFields: [
+        {fieldKey: "ev_materials_verified_photos", fieldValue: "https://files.example.com/materials.pdf"},
+        {fieldKey: "dt_materials_verified", fieldValue: ""},
+        {fieldKey: "dt_install_scheduled", fieldValue: "2026-07-01"}
+      ]
+    }
+  },
+  empty: {
+    type: "OpportunityUpdate",
+    opportunity: {
+      id: "demo-opp-004",
+      pipelineId: "88V9uYY6visCrtI9V0NR",
+      pipelineStageId: "c98f59ed-7b38-4dd6-ae64-01c5a6537894",
+      customFields: []
+    }
+  },
+  at_p10: {
+    type: "OpportunityUpdate",
+    opportunity: {
+      id: "demo-opp-005",
+      pipelineId: "88V9uYY6visCrtI9V0NR",
+      pipelineStageId: "7a4f2d75-f033-4971-8eed-8ca4285e639e",
+      customFields: [
+        {fieldKey: "ev_materials_verified_photos", fieldValue: "uploaded"},
+        {fieldKey: "dt_materials_verified", fieldValue: "2026-06-12"},
+        {fieldKey: "dt_install_scheduled", fieldValue: "2026-07-01"}
+      ]
+    }
+  }
+};
+
+function loadPreset(name) {
+  document.getElementById("replay-body").value = JSON.stringify(PRESETS[name], null, 2);
+}
+
+function ago(iso) {
+  if (!iso) return "";
+  const t = new Date(iso.endsWith("Z") ? iso : iso + "Z").getTime();
+  const diff = (Date.now() - t) / 1000;
+  if (diff < 5) return "just now";
+  if (diff < 60) return Math.floor(diff) + "s ago";
+  if (diff < 3600) return Math.floor(diff / 60) + "m ago";
+  if (diff < 86400) return Math.floor(diff / 3600) + "h ago";
+  return Math.floor(diff / 86400) + "d ago";
+}
+
+function fmtField(d) {
+  if (!d.target_field) return '<span class="muted">—</span>';
+  const cur = d.current_value === null || d.current_value === undefined ? '<span class="muted">∅ empty</span>' : `<span class="mono">${escapeHtml(d.current_value)}</span>`;
+  const tgt = d.target_value === null || d.target_value === undefined ? '<span class="muted">no change</span>' : `<span class="mono">${escapeHtml(d.target_value)}</span>`;
+  return `<div class="field-change"><span class="field-name mono">${escapeHtml(d.target_field)}</span><span class="arrow">·</span>${cur}<span class="arrow">→</span>${tgt}</div>`;
+}
+
+function escapeHtml(s) {
+  if (s === null || s === undefined) return "";
+  return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+async function loadStatus() {
+  try {
+    const r = await fetch("/healthz");
+    const d = await r.json();
+    document.getElementById("status").innerHTML =
+      `<span class="pill ok">Status<strong>${d.status}</strong></span>` +
+      `<span class="pill">Mode<strong>${d.mode}</strong></span>` +
+      `<span class="pill ${d.writes_enabled ? 'warn' : 'ok'}">Writes<strong>${d.writes_enabled ? "ENABLED" : "disabled"}</strong></span>` +
+      `<span class="pill">Location<strong class="mono">${escapeHtml(d.location_id)}</strong></span>` +
+      `<span class="pill">Handlers<strong>${d.handlers.length}</strong></span>`;
+  } catch (e) {
+    document.getElementById("status").innerHTML = `<span class="pill warn">Status<strong>unreachable</strong></span>`;
+  }
+}
+
+async function loadDecisions() {
+  try {
+    const r = await fetch("/decisions?limit=50");
+    const rows = await r.json();
+    document.getElementById("decisions-count").textContent = rows.length + " shown";
+    const tbody = document.getElementById("decisions-tbody");
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty">No decisions yet. Try sending a replay below.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(d => `
+      <tr>
+        <td class="ago" title="${escapeHtml(d.decided_at)}">${ago(d.decided_at)}</td>
+        <td class="mono">${escapeHtml(d.handler)}</td>
+        <td><span class="badge badge-${escapeHtml(d.decision)}">${escapeHtml(d.decision).replace(/_/g, " ")}</span></td>
+        <td>${fmtField(d)}</td>
+        <td class="reason">${escapeHtml(d.reason || "")}</td>
+      </tr>
+    `).join("");
+  } catch (e) {
+    document.getElementById("decisions-tbody").innerHTML = `<tr><td colspan="5" class="empty">error loading: ${escapeHtml(e.message)}</td></tr>`;
+  }
+}
+
+async function loadEvents() {
+  try {
+    const r = await fetch("/events?limit=30");
+    const rows = await r.json();
+    document.getElementById("events-count").textContent = rows.length + " shown";
+    const tbody = document.getElementById("events-tbody");
+    if (!rows.length) {
+      tbody.innerHTML = '<tr><td colspan="4" class="empty">No events yet.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = rows.map(e => `
+      <tr>
+        <td class="ago" title="${escapeHtml(e.received_at)}">${ago(e.received_at)}</td>
+        <td>${escapeHtml(e.source)}</td>
+        <td class="mono">${escapeHtml(e.event_type || "")}</td>
+        <td class="mono">${escapeHtml(e.opp_id || "")}</td>
+      </tr>
+    `).join("");
+  } catch (e) {
+    document.getElementById("events-tbody").innerHTML = `<tr><td colspan="4" class="empty">error loading</td></tr>`;
+  }
+}
+
+async function sendReplay() {
+  const btn = document.getElementById("replay-btn");
+  const status = document.getElementById("replay-status");
+  const result = document.getElementById("replay-result");
+  btn.disabled = true;
+  status.textContent = "sending…";
+  result.style.display = "none";
+  try {
+    const body = document.getElementById("replay-body").value;
+    JSON.parse(body); // validate
+    const r = await fetch("/webhook/replay", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body
+    });
+    const d = await r.json();
+    result.textContent = JSON.stringify(d, null, 2);
+    result.style.display = "block";
+    status.textContent = "✓ delivered as event #" + d.event_id;
+    await loadAll();
+  } catch (e) {
+    status.textContent = "✗ " + e.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function loadAll() {
+  loadStatus();
+  loadDecisions();
+  loadEvents();
+}
+
+// Initial load
+loadPreset("install_scheduled");
+loadAll();
+// Auto-refresh every 15 seconds
+setInterval(loadAll, 15000);
+</script>
+</body>
+</html>

@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
 from config import settings
@@ -40,8 +42,15 @@ async def lifespan(_: FastAPI):
 
 app = FastAPI(title="GHL Shadow Service", version="0.1.0", lifespan=lifespan)
 
+_DASHBOARD_PATH = Path(__file__).parent / "dashboard.html"
+
 
 # ---------- Endpoints ----------
+
+@app.get("/", include_in_schema=False)
+async def dashboard() -> FileResponse:
+    return FileResponse(_DASHBOARD_PATH, media_type="text/html")
+
 
 @app.get("/healthz")
 async def healthz() -> dict[str, Any]:
