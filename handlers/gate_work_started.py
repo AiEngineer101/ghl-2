@@ -6,10 +6,7 @@ Spec source: workflow/01-gates/tf-to-dt/gate-work-started.md
 - DO: Set dt_work_started = Today
 - Idempotent: never overwrites an existing dt_work_started
 
-Shadow-only by design — SUPPORTS_WRITE is intentionally NOT set, so even with
-WRITES_ENABLED=true globally, this handler will only log decisions and never
-write back to GHL. Live GHL workflow `WF | Gate | WorkStarted` remains the
-actual stamper until cutover.
+Active writer — the corresponding live GHL workflow should be set to Draft.
 """
 from __future__ import annotations
 
@@ -19,6 +16,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity, yes
 
 HANDLER_ID = "gate-work-started"
+SUPPORTS_WRITE = True  # active writer
 INPUT_FIELD = "tf_work_started"
 OUTPUT_FIELD = "dt_work_started"
 
@@ -65,3 +63,9 @@ def _to_str(v: Any) -> str | None:
     if v is None:
         return None
     return str(v)
+
+
+async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
+    """Stamp dt_work_started via the GHL writer."""
+    from handlers._writers import stamp_custom_field
+    return await stamp_custom_field(opp_data, decision, OUTPUT_FIELD)

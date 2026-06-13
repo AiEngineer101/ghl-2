@@ -6,10 +6,7 @@ Spec source: workflow/03-move/production/move-prod-p20-p30-work-completed.md
 - DO: Move to PL_PROD / P30 (Job Completed)
 - Idempotent: skip if already at P30 or beyond
 
-Shadow-only by design — SUPPORTS_WRITE is intentionally NOT set, so even with
-WRITES_ENABLED=true globally, this handler will only log decisions and never
-write back to GHL. Live GHL workflow `WF | Move | Prod | P20→P30 Work Completed`
-(id bcaab453-8b19-4a34-81c5-b732fd95dd7a) remains the actual mover until cutover.
+Active writer — the corresponding live GHL workflow should be set to Draft.
 """
 from __future__ import annotations
 
@@ -18,6 +15,7 @@ from typing import Any
 from handlers._common import custom_field_map, unwrap_opportunity
 
 HANDLER_ID = "move-prod-p20-p30-work-completed"
+SUPPORTS_WRITE = True  # active writer
 
 # GHL pipeline/stage IDs
 PIPELINE_ID_PROD = "88V9uYY6visCrtI9V0NR"
@@ -95,3 +93,9 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
             f"would move to P30 (Job Completed)"
         ),
     }
+
+
+async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
+    """PUT pipelineStageId=P30 via the GHL writer."""
+    from handlers._writers import move_stage
+    return await move_stage(opp_data, decision)

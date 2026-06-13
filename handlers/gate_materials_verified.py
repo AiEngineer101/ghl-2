@@ -1,10 +1,12 @@
-"""Shadow handler for WF | Gate | MaterialsVerified.
+"""Active handler for WF | Gate | MaterialsVerified.
 
 Spec source: workflow/01-gates/ev-to-dt/gate-materials-verified.md
 - Trigger: Opportunity Changed (in Production pipeline)
 - IF: ev_materials_verified_photos is not empty
 - DO: if dt_materials_verified is empty -> set dt_materials_verified = Today
 - Idempotent: never overwrites an existing dt_materials_verified
+
+Active writer — the corresponding live GHL workflow should be set to Draft.
 """
 from __future__ import annotations
 
@@ -14,6 +16,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity
 
 HANDLER_ID = "gate-materials-verified"
+SUPPORTS_WRITE = True  # active writer
 INPUT_FIELD = "ev_materials_verified_photos"
 OUTPUT_FIELD = "dt_materials_verified"
 
@@ -56,3 +59,9 @@ def _to_str(v: Any) -> str | None:
     if v is None:
         return None
     return str(v)
+
+
+async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
+    """Stamp dt_materials_verified via the GHL writer."""
+    from handlers._writers import stamp_custom_field
+    return await stamp_custom_field(opp_data, decision, OUTPUT_FIELD)
