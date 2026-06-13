@@ -7,10 +7,13 @@ Spec source: workflow/03-move/production/move-prod-p10-p20-work-started.md
 - DO: Move to PL_PROD / P20 (Job In Progress)
 - Idempotent: skip if already at P20 or beyond
 
-Shadow-only by design — SUPPORTS_WRITE is intentionally NOT set, so even with
-WRITES_ENABLED=true globally, this handler will only log decisions and never
-write back to GHL. Live GHL workflow `WF | Move | Prod | P10→P20 Work Started`
-(id 2757c534-656f-4c7e-ad7e-6ee7c0c6f285) remains the actual mover.
+Active writer — SUPPORTS_WRITE=True. The live GHL workflow
+`WF | Move | Prod | P10→P20 Work Started` should be set to Draft so this
+handler is the sole mover. The P20 stage-gate guard
+`WF | Stage Gate | Prod P20 Requires Work Started` stays Published and
+will bounce any move-to-P20 where tf_work_started != Yes. Since this
+handler also requires tf_work_started=Yes before issuing would_move, the
+two agree.
 """
 from __future__ import annotations
 
@@ -19,6 +22,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity
 
 HANDLER_ID = "move-prod-p10-p20-work-started"
+SUPPORTS_WRITE = True  # active writer
 
 # GHL pipeline/stage IDs
 PIPELINE_ID_PROD = "88V9uYY6visCrtI9V0NR"
@@ -141,3 +145,44 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
             f"stop-work clear — would move to P20 (Job In Progress)"
         ),
     }
+
+
+async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
+    """Perform the P10→P20 (or P05→P20) move via the GHL writer.
+
+    Only called when decision is would_move AND writes are enabled.
+    """
+    from ghl_client import ghl
+    from ghl_writer import writer
+
+    if decision.get("decision") != "would_move":
+        return {"executed": False, "reason": "decision is not would_move"}
+
+    opp = unwrap_opportunity({"opportunity": opp_data})
+    opp_id = opp.get("id")
+    pipeline_id = opp.get("pipelineId")
+    if not opp_id:
+        return {"executed": False, "reason": "missing opp_id"}
+
+    # Per spec we should also stamp sys_last_good_* (audit ledger). The first
+    # attempt with `field_value` was silently ignored by GHL on the P05->P10
+    # move; trying `value` here for parity with /opportunities/{id} PATCH-style
+    # payloads. The stage move via top-level pipelineStageId is the must-have;
+    # the customFields portion is best-effort.
+    id_to_key = await ghl.get_opportunity_field_key_map()
+    key_to_id = {v: k for k, v in id_to_key.items()}
+    custom_fields = []
+    for key, value in (
+        ("sys_last_good_pipeline_code", "PL_PROD"),
+        ("sys_last_good_stage_code", "P20"),
+    ):
+        fid = key_to_id.get(key)
+        if fid:
+            custom_fields.append({"id": fid, "value": value})
+
+    updates: dict[str, Any] = {"pipelineStageId": STAGE_ID_P20}
+    if custom_fields:
+        updates["customFields"] = custom_fields
+
+    response = await writer.update_opportunity(opp_id, pipeline_id, updates)
+    return {"executed": True, "response": response, "applied": updates}
