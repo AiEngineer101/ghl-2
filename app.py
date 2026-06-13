@@ -20,6 +20,8 @@ from db import get_session, init_db
 from ghl_client import ghl
 from handlers import (
     gate_materials_verified,
+    gate_work_completed,
+    gate_work_started,
     move_prod_p05_p10,
     move_prod_p10_p20_work_started,
     move_prod_p20_p30_work_completed,
@@ -31,6 +33,8 @@ log = logging.getLogger("shadow")
 
 HANDLERS = [
     gate_materials_verified,
+    gate_work_started,
+    gate_work_completed,
     move_prod_p05_p10,
     move_prod_p10_p20_work_started,
     move_prod_p20_p30_work_completed,

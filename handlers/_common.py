@@ -37,3 +37,16 @@ def truthy(v: Any) -> bool:
     if isinstance(v, list) and len(v) == 0:
         return False
     return True
+
+
+def yes(value: Any) -> bool:
+    """Return True if a truth-flag (tf_*) field equals Yes.
+
+    GHL stores Yes/No fields variably: as the string "Yes", as the list ["Yes"], or
+    sometimes case-shifted. Be tolerant.
+    """
+    if value is None:
+        return False
+    if isinstance(value, list):
+        return any(yes(v) for v in value)
+    return str(value).strip().lower() == "yes"
