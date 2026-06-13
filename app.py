@@ -19,6 +19,7 @@ from config import settings
 from db import get_session, init_db
 from ghl_client import ghl
 from handlers import (
+    enforce_stage_truth_invariant,
     gate_materials_verified,
     gate_work_completed,
     gate_work_started,
@@ -31,6 +32,8 @@ from models import Decision, Event, Snapshot
 logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 log = logging.getLogger("shadow")
 
+# Order matters: gates stamp first, movers advance next, enforcer runs LAST so
+# it sees the post-mover state and only rewinds if invariants are still broken.
 HANDLERS = [
     gate_materials_verified,
     gate_work_started,
@@ -38,6 +41,7 @@ HANDLERS = [
     move_prod_p05_p10,
     move_prod_p10_p20_work_started,
     move_prod_p20_p30_work_completed,
+    enforce_stage_truth_invariant,
 ]
 
 
