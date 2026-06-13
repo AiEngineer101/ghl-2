@@ -43,5 +43,20 @@ class GHLReadOnlyClient:
             r.raise_for_status()
             return r.json()
 
+    async def search_opportunities_by_contact(self, contact_id: str, limit: int = 5) -> list[dict[str, Any]]:
+        """Read-only search: find opportunities for a contact, most recent first."""
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(
+                f"{self.base}/opportunities/search",
+                headers=self.headers,
+                params={
+                    "location_id": settings.ghl_location_id,
+                    "contact_id": contact_id,
+                    "limit": limit,
+                },
+            )
+            r.raise_for_status()
+            return r.json().get("opportunities", [])
+
 
 ghl = GHLReadOnlyClient()

@@ -148,6 +148,23 @@ async def get_event(event_id: int, db: Session = Depends(get_session)) -> dict[s
 
 async def _process(db: Session, raw: dict[str, Any], source: str) -> dict[str, Any]:
     event = _record_event(db, raw, source)
+
+    # If no opp_id in the payload, try contact_id fallback (GHL contact-centric webhooks)
+    if not event.opp_id:
+        contact_id = _extract_contact_id(raw)
+        if contact_id and settings.ghl_pit:
+            try:
+                opps = await ghl.search_opportunities_by_contact(contact_id)
+            except Exception as exc:
+                log.warning("contact->opp lookup failed for contact_id=%s: %s", contact_id, exc)
+                opps = []
+            if opps:
+                # Use most-recently-updated opportunity
+                opps.sort(key=lambda o: o.get("updatedAt", ""), reverse=True)
+                event.opp_id = opps[0].get("id")
+                log.info("resolved opp via contact_id=%s -> opp_id=%s", contact_id, event.opp_id)
+                db.flush()
+
     snapshot, opp_data = await _maybe_snapshot(db, event, raw)
     decisions = _run_handlers(db, event, snapshot, opp_data)
     db.commit()
@@ -252,15 +269,45 @@ def _check_secret(provided: str | None) -> None:
 
 
 def _extract_opp_id(raw: dict[str, Any]) -> str | None:
+    """Extract opportunity ID from various GHL webhook payload shapes."""
     if not isinstance(raw, dict):
         return None
-    if isinstance(raw.get("opportunity_id"), str):
-        return raw["opportunity_id"]
+
+    # 1. Top-level opportunity_id (manual replay shape)
+    v = raw.get("opportunity_id")
+    if isinstance(v, str) and v.strip():
+        return v.strip()
+
+    # 2. Nested opportunity object with id
     opp = raw.get("opportunity")
-    if isinstance(opp, dict) and isinstance(opp.get("id"), str):
-        return opp["id"]
+    if isinstance(opp, dict) and isinstance(opp.get("id"), str) and opp["id"].strip():
+        return opp["id"].strip()
+
+    # 3. customData.opportunity_id (GHL webhook action with Custom Data)
+    cd = raw.get("customData")
+    if isinstance(cd, dict):
+        for k in ("opportunity_id", "opp_id", "opportunityId"):
+            v = cd.get(k)
+            if isinstance(v, str) and v.strip():
+                return v.strip()
+
+    # 4. raw.id when raw.type names an opportunity event
     if isinstance(raw.get("id"), str) and "opportunity" in str(raw.get("type", "")).lower():
         return raw["id"]
+
+    return None
+
+
+def _extract_contact_id(raw: dict[str, Any]) -> str | None:
+    """Extract contact ID — used as a fallback to look up opportunities."""
+    if not isinstance(raw, dict):
+        return None
+    v = raw.get("contact_id")
+    if isinstance(v, str) and v.strip():
+        return v.strip()
+    contact = raw.get("contact")
+    if isinstance(contact, dict) and isinstance(contact.get("id"), str):
+        return contact["id"]
     return None
 
 
