@@ -220,6 +220,16 @@ async def _maybe_snapshot(
         return None, inline_opp
 
     opp_obj = full.get("opportunity", full)
+
+    # Enrich customFields with fieldKey so handlers can look them up by name.
+    # GHL's opp API returns customFields keyed by ID only.
+    try:
+        id_to_key = await ghl.get_opportunity_field_key_map()
+        for cf in opp_obj.get("customFields", []) or []:
+            if isinstance(cf, dict) and not cf.get("fieldKey"):
+                cf["fieldKey"] = id_to_key.get(cf.get("id"), "")
+    except Exception as exc:
+        log.warning("could not enrich custom field keys: %s", exc)
     snap = Snapshot(
         event_id=event.id,
         opp_id=event.opp_id,
