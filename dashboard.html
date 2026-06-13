@@ -14,6 +14,8 @@
     --muted: #8b95a3;
     --accent: #4f9eff;
     --green: #3ddc97;
+    --green-bg: rgba(61,220,151,0.08);
+    --green-border: rgba(61,220,151,0.35);
     --yellow: #ffc857;
     --red: #ff6b6b;
     --gray: #5a6473;
@@ -39,11 +41,11 @@
   .pill.ok strong { color: var(--green); }
   .pill.warn strong { color: var(--yellow); }
   .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; margin-bottom: 16px; overflow: hidden; }
-  .panel-head { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+  .panel-head { padding: 12px 16px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; }
   .panel-head h2 { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: 0.02em; }
-  .panel-head .actions { display: flex; gap: 8px; align-items: center; }
+  .panel-head .actions { display: flex; gap: 12px; align-items: center; }
   .panel-head .meta { font-size: 11px; color: var(--muted); }
-  .panel-body { max-height: 420px; overflow-y: auto; }
+  .panel-body { max-height: 560px; overflow-y: auto; padding: 0; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   thead { position: sticky; top: 0; background: var(--panel); z-index: 1; }
   thead th { font-weight: 500; color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -53,10 +55,13 @@
   .badge { display: inline-block; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
   .badge-would_stamp { background: rgba(79,158,255,0.15); color: var(--accent); }
   .badge-would_move { background: rgba(61,220,151,0.15); color: var(--green); }
+  .badge-would_rewind { background: rgba(255,107,107,0.18); color: var(--red); }
   .badge-skip_idempotent { background: rgba(255,200,87,0.15); color: var(--yellow); }
   .badge-skip_condition_unmet { background: rgba(255,200,87,0.10); color: var(--yellow); }
+  .badge-skip_blocked { background: rgba(255,107,107,0.12); color: var(--red); }
   .badge-no_op { background: rgba(90,100,115,0.2); color: var(--gray); }
   .badge-unknown { background: rgba(255,107,107,0.15); color: var(--red); }
+  .exec-pill { background: var(--green); color: #0b1a13; font-weight: 700; padding: 2px 8px; border-radius: 3px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em; }
   .mono { font-family: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace; font-size: 12px; }
   .muted { color: var(--muted); }
   .reason { color: var(--muted); font-size: 12px; max-width: 380px; }
@@ -74,16 +79,42 @@
   .empty { padding: 24px; text-align: center; color: var(--muted); font-size: 13px; }
   .layout { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
-  .field-change { display: flex; gap: 8px; align-items: baseline; font-size: 12px; }
+  .field-change { display: flex; gap: 8px; align-items: baseline; font-size: 12px; flex-wrap: wrap; }
   .field-change .field-name { color: var(--muted); }
   .field-change .arrow { color: var(--muted); }
+  .stage-tag { display: inline-block; padding: 1px 6px; border-radius: 3px; background: var(--panel-2); color: var(--text); font-family: ui-monospace, Menlo, monospace; font-size: 11px; font-weight: 600; border: 1px solid var(--border); }
+  .stage-tag.from { color: var(--muted); }
+  .stage-tag.to { color: var(--green); border-color: var(--green-border); }
+
+  /* Event cards */
+  .event-card { border-bottom: 1px solid var(--border); }
+  .event-card:last-child { border-bottom: none; }
+  .event-card.has-action { background: var(--green-bg); border-left: 3px solid var(--green); }
+  .event-card.no-action { opacity: 0.65; }
+  .event-card.no-action.collapsed .event-body { display: none; }
+  .event-head { padding: 10px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; user-select: none; }
+  .event-head:hover { background: rgba(255,255,255,0.02); }
+  .event-head .caret { color: var(--muted); font-size: 10px; width: 12px; transition: transform 0.15s; }
+  .event-card:not(.collapsed) .event-head .caret { transform: rotate(90deg); }
+  .event-summary { flex: 1; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; }
+  .event-summary .ev-id { color: var(--muted); font-family: ui-monospace, Menlo, monospace; font-size: 11px; }
+  .event-summary .ev-action { font-weight: 600; color: var(--text); }
+  .event-summary .ev-action-detail { color: var(--muted); font-size: 12px; }
+  .event-body { padding: 0; border-top: 1px solid var(--border); background: var(--bg); }
+  .event-card.collapsed .event-body { display: none; }
+  .event-body table { font-size: 12px; }
+  .event-body td { padding: 7px 16px; }
+  .event-body tr.executed td { background: rgba(61,220,151,0.06); }
+  .event-body tr.executed td:first-child { border-left: 2px solid var(--green); padding-left: 14px; }
+  .filter-toggle { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; cursor: pointer; user-select: none; }
+  .filter-toggle input { margin: 0; }
 </style>
 </head>
 <body>
 <div class="header">
   <h1>GHL Shadow Service</h1>
   <div class="subtitle">
-    Read-only mirror of selected GHL workflows. No writes to CRM. ·
+    Per-event view of handler decisions. Cards with a green border had at least one executed write. ·
     <a href="/docs" target="_blank">API docs</a> ·
     <a href="https://dashboard.render.com/web/srv-d8mgjk37uimc738scaj0/logs" target="_blank">stdout logs (Render)</a>
   </div>
@@ -92,29 +123,32 @@
 
 <div class="panel">
   <div class="panel-head">
-    <h2>Recent Decisions</h2>
+    <h2>Recent Events</h2>
     <div class="actions">
+      <label class="filter-toggle">
+        <input type="checkbox" id="filter-actions" checked onchange="renderEvents()">
+        Only events with actions
+      </label>
+      <label class="filter-toggle">
+        <input type="checkbox" id="filter-hide-noise" checked onchange="renderEvents()">
+        Hide no_op / skip rows in details
+      </label>
       <span class="meta" id="decisions-count"></span>
       <button class="ghost" onclick="loadAll()">↻ Refresh</button>
     </div>
   </div>
-  <div class="panel-body">
-    <table>
-      <thead><tr><th style="width:80px">Time</th><th>Handler</th><th>Decision</th><th>Field Change</th><th>Reason</th></tr></thead>
-      <tbody id="decisions-tbody"><tr><td colspan="5" class="empty">loading…</td></tr></tbody>
-    </table>
-  </div>
+  <div class="panel-body" id="events-list"><div class="empty">loading…</div></div>
 </div>
 
 <div class="layout">
   <div class="panel">
     <div class="panel-head">
-      <h2>Recent Events</h2>
+      <h2>Event Stream (raw)</h2>
       <span class="meta" id="events-count"></span>
     </div>
     <div class="panel-body">
       <table>
-        <thead><tr><th style="width:80px">Time</th><th>Source</th><th>Type</th><th>Opp ID</th></tr></thead>
+        <thead><tr><th style="width:80px">Time</th><th>Event #</th><th>Source</th><th>Opp ID</th></tr></thead>
         <tbody id="events-tbody"><tr><td colspan="4" class="empty">loading…</td></tr></tbody>
       </table>
     </div>
@@ -143,6 +177,34 @@
 </div>
 
 <script>
+// ============================================================
+// Lookup tables
+// ============================================================
+const STAGE_LABELS = {
+  // Production
+  "c98f59ed-7b38-4dd6-ae64-01c5a6537894": "P05 Ready for Materials",
+  "7a4f2d75-f033-4971-8eed-8ca4285e639e": "P10 Production Scheduled",
+  "ebef66b1-a570-412c-93b3-1be988d6a33f": "P20 Job In Progress",
+  "96f19b6d-4d85-4e66-910f-4a4f071bf9c0": "P30 Job Completed",
+  "bb84bafb-5266-4063-b1f6-bc1ef21a0790": "P40 Closeout Pending",
+  "de0bc542-b6a0-4885-b991-18ed02b19fe7": "P50 Closed Won",
+};
+function stageLabel(uuid) {
+  if (!uuid) return null;
+  const label = STAGE_LABELS[uuid];
+  return label ? label.split(" ")[0] : uuid.slice(0, 8) + "…";
+}
+function stageLabelFull(uuid) {
+  if (!uuid) return null;
+  return STAGE_LABELS[uuid] || uuid;
+}
+
+// "would_*" decisions are actions worth surfacing. "no_op" / "skip_*" are noise.
+const ACTION_DECISIONS = new Set(["would_stamp", "would_move", "would_rewind"]);
+const NOISE_DECISIONS = new Set([
+  "no_op", "skip_idempotent", "skip_condition_unmet", "skip_blocked"
+]);
+
 const PRESETS = {
   install_scheduled: {
     type: "OpportunityUpdate",
@@ -222,16 +284,162 @@ function ago(iso) {
   return Math.floor(diff / 86400) + "d ago";
 }
 
-function fmtField(d) {
-  if (!d.target_field) return '<span class="muted">—</span>';
-  const cur = d.current_value === null || d.current_value === undefined ? '<span class="muted">∅ empty</span>' : `<span class="mono">${escapeHtml(d.current_value)}</span>`;
-  const tgt = d.target_value === null || d.target_value === undefined ? '<span class="muted">no change</span>' : `<span class="mono">${escapeHtml(d.target_value)}</span>`;
-  return `<div class="field-change"><span class="field-name mono">${escapeHtml(d.target_field)}</span><span class="arrow">·</span>${cur}<span class="arrow">→</span>${tgt}</div>`;
-}
-
 function escapeHtml(s) {
   if (s === null || s === undefined) return "";
   return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+}
+
+// Friendly per-row field display. UUIDs that are stage IDs get translated.
+function fmtField(d) {
+  if (!d.target_field) return '<span class="muted">—</span>';
+  const isStage = d.target_field === "pipelineStageId";
+  const fmtVal = (v, role) => {
+    if (v === null || v === undefined) return '<span class="muted">∅ empty</span>';
+    if (isStage) {
+      const lbl = stageLabel(v);
+      const klass = role === "to" ? "stage-tag to" : "stage-tag from";
+      return `<span class="${klass}" title="${escapeHtml(v)}">${escapeHtml(lbl)}</span>`;
+    }
+    return `<span class="mono">${escapeHtml(v)}</span>`;
+  };
+  const cur = fmtVal(d.current_value, "from");
+  const tgt = d.target_value === null || d.target_value === undefined
+    ? '<span class="muted">no change</span>'
+    : fmtVal(d.target_value, "to");
+  return `<div class="field-change"><span class="field-name mono">${escapeHtml(d.target_field)}</span><span class="arrow">·</span>${cur}<span class="arrow">→</span>${tgt}</div>`;
+}
+
+// Short, human-readable summary of the action this event took, if any.
+function eventActionSummary(eventId, decisions) {
+  // Find the executed action (or the most consequential decision).
+  const executed = decisions.find(d => d.executed);
+  const candidate = executed || decisions.find(d => ACTION_DECISIONS.has(d.decision));
+  if (!candidate) {
+    return {
+      hasAction: false,
+      title: `${decisions.length} handlers ran, no actions taken`,
+      detail: "",
+    };
+  }
+  const verb = {
+    would_stamp: executed ? "STAMPED" : "would stamp",
+    would_move: executed ? "MOVED" : "would move",
+    would_rewind: executed ? "REWOUND" : "would rewind",
+  }[candidate.decision] || candidate.decision;
+
+  let detail = "";
+  if (candidate.target_field === "pipelineStageId") {
+    detail = `${stageLabel(candidate.current_value) || "?"} → ${stageLabel(candidate.target_value) || "?"}`;
+  } else if (candidate.target_field) {
+    const tv = candidate.target_value !== null && candidate.target_value !== undefined
+      ? ` = ${candidate.target_value}` : "";
+    detail = `${candidate.target_field}${tv}`;
+  }
+  return {
+    hasAction: true,
+    title: `${candidate.handler} · ${verb}`,
+    detail,
+    executed: !!executed,
+  };
+}
+
+// ============================================================
+// Data & render
+// ============================================================
+let _decisionsByEvent = new Map();
+let _eventOrder = [];
+
+async function loadDecisions() {
+  try {
+    const r = await fetch("/decisions?limit=200");
+    const rows = await r.json();
+    document.getElementById("decisions-count").textContent = rows.length + " decisions";
+    // Group by event_id
+    _decisionsByEvent = new Map();
+    for (const d of rows) {
+      if (!_decisionsByEvent.has(d.event_id)) _decisionsByEvent.set(d.event_id, []);
+      _decisionsByEvent.get(d.event_id).push(d);
+    }
+    _eventOrder = [..._decisionsByEvent.keys()].sort((a,b) => b - a); // newest first
+    renderEvents();
+  } catch (e) {
+    document.getElementById("events-list").innerHTML = `<div class="empty">error loading: ${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function renderEvents() {
+  const onlyActions = document.getElementById("filter-actions").checked;
+  const hideNoise = document.getElementById("filter-hide-noise").checked;
+  const container = document.getElementById("events-list");
+
+  if (_eventOrder.length === 0) {
+    container.innerHTML = '<div class="empty">No decisions yet. Try sending a replay below.</div>';
+    return;
+  }
+
+  const cards = [];
+  for (const eventId of _eventOrder) {
+    const decisions = _decisionsByEvent.get(eventId);
+    // Sort decisions: executed first, then would_*, then noise. Stable within each tier.
+    const sorted = [...decisions].sort((a,b) => {
+      const rank = d => d.executed ? 0 : ACTION_DECISIONS.has(d.decision) ? 1 : 2;
+      return rank(a) - rank(b);
+    });
+    const summary = eventActionSummary(eventId, sorted);
+    if (onlyActions && !summary.hasAction) continue;
+
+    const decisionRows = sorted
+      .filter(d => !hideNoise || !NOISE_DECISIONS.has(d.decision) || d.executed)
+      .map(d => {
+        const cls = d.executed ? 'class="executed"' : '';
+        const execTag = d.executed ? '<span class="exec-pill">EXEC</span> ' : '';
+        return `<tr ${cls}>
+          <td class="ago" title="${escapeHtml(d.decided_at)}">${ago(d.decided_at)}</td>
+          <td class="mono">${escapeHtml(d.handler)}</td>
+          <td>${execTag}<span class="badge badge-${escapeHtml(d.decision)}">${escapeHtml(d.decision).replace(/_/g, " ")}</span></td>
+          <td>${fmtField(d)}</td>
+          <td class="reason">${escapeHtml(d.reason || "")}</td>
+        </tr>`;
+      }).join("");
+    const detailCount = sorted.length;
+    const shownCount = sorted.filter(d => !hideNoise || !NOISE_DECISIONS.has(d.decision) || d.executed).length;
+    const oldestTime = sorted[sorted.length - 1]?.decided_at;
+
+    const titleHtml = summary.hasAction
+      ? (summary.executed
+          ? `<span class="exec-pill">EXEC</span> <span class="ev-action">${escapeHtml(summary.title)}</span>`
+          : `<span class="ev-action">${escapeHtml(summary.title)}</span>`)
+      : `<span class="muted">${escapeHtml(summary.title)}</span>`;
+
+    const detailHtml = summary.detail ? `<span class="ev-action-detail">${escapeHtml(summary.detail)}</span>` : "";
+
+    cards.push(`
+      <div class="event-card ${summary.hasAction ? 'has-action' : 'no-action'} ${summary.hasAction ? '' : 'collapsed'}" data-event="${eventId}">
+        <div class="event-head" onclick="toggleCard(${eventId})">
+          <span class="caret">▶</span>
+          <span class="ago">${ago(oldestTime)}</span>
+          <div class="event-summary">
+            <span class="ev-id">event #${eventId}</span>
+            ${titleHtml}
+            ${detailHtml}
+            <span class="muted" style="margin-left:auto">${shownCount}/${detailCount} rows</span>
+          </div>
+        </div>
+        <div class="event-body">
+          <table>
+            <thead><tr><th style="width:80px">Time</th><th>Handler</th><th>Decision</th><th>Field Change</th><th>Reason</th></tr></thead>
+            <tbody>${decisionRows || '<tr><td colspan="5" class="empty">all rows filtered out</td></tr>'}</tbody>
+          </table>
+        </div>
+      </div>
+    `);
+  }
+  container.innerHTML = cards.join("") || '<div class="empty">No events match the current filter.</div>';
+}
+
+function toggleCard(eventId) {
+  const el = document.querySelector(`.event-card[data-event="${eventId}"]`);
+  if (el) el.classList.toggle("collapsed");
 }
 
 async function loadStatus() {
@@ -249,30 +457,6 @@ async function loadStatus() {
   }
 }
 
-async function loadDecisions() {
-  try {
-    const r = await fetch("/decisions?limit=50");
-    const rows = await r.json();
-    document.getElementById("decisions-count").textContent = rows.length + " shown";
-    const tbody = document.getElementById("decisions-tbody");
-    if (!rows.length) {
-      tbody.innerHTML = '<tr><td colspan="5" class="empty">No decisions yet. Try sending a replay below.</td></tr>';
-      return;
-    }
-    tbody.innerHTML = rows.map(d => `
-      <tr>
-        <td class="ago" title="${escapeHtml(d.decided_at)}">${ago(d.decided_at)}</td>
-        <td class="mono">${escapeHtml(d.handler)}</td>
-        <td><span class="badge badge-${escapeHtml(d.decision)}">${escapeHtml(d.decision).replace(/_/g, " ")}</span></td>
-        <td>${fmtField(d)}</td>
-        <td class="reason">${escapeHtml(d.reason || "")}</td>
-      </tr>
-    `).join("");
-  } catch (e) {
-    document.getElementById("decisions-tbody").innerHTML = `<tr><td colspan="5" class="empty">error loading: ${escapeHtml(e.message)}</td></tr>`;
-  }
-}
-
 async function loadEvents() {
   try {
     const r = await fetch("/events?limit=30");
@@ -286,9 +470,9 @@ async function loadEvents() {
     tbody.innerHTML = rows.map(e => `
       <tr>
         <td class="ago" title="${escapeHtml(e.received_at)}">${ago(e.received_at)}</td>
+        <td class="mono">#${e.id}</td>
         <td>${escapeHtml(e.source)}</td>
-        <td class="mono">${escapeHtml(e.event_type || "")}</td>
-        <td class="mono">${escapeHtml(e.opp_id || "")}</td>
+        <td class="mono">${escapeHtml((e.opp_id || "").slice(-8))}</td>
       </tr>
     `).join("");
   } catch (e) {
