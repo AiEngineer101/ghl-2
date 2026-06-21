@@ -23,9 +23,16 @@ def _opp(contract=None, funds=None, current=None) -> dict:
     return {"opportunity": {"customFields": fields}}
 
 
-def test_skip_condition_unmet_when_amounts_missing():
-    assert evaluate(_opp(contract="1000"))["decision"] == "skip_condition_unmet"
+def test_skip_when_contract_missing():
+    # No contract target -> can't determine reconciliation; leave the field alone.
     assert evaluate(_opp(funds="1000"))["decision"] == "skip_condition_unmet"
+
+
+def test_not_reconciled_when_funds_blank():
+    # The fix: contract present but funds cleared -> $0 received -> No (not stale Yes).
+    r = evaluate(_opp(contract="1000"))
+    assert r["decision"] == "would_stamp"
+    assert r["target_value"] == "No"
 
 
 def test_skip_condition_unmet_when_unparseable():

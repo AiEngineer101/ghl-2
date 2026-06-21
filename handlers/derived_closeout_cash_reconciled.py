@@ -3,9 +3,11 @@
 Spec source: workflow/02-derived/derived-closeout-cash-reconciled.md
 - Trigger (live): Opportunity Changed, "Custom field updated: amt_total_funds_received
   OR amt_contract_value"
-- IF: amt_contract_value not empty AND amt_total_funds_received not empty
+- IF: amt_contract_value is present (the payment target). Missing/blank funds count
+  as $0 received.
 - DO: set sys_closeout_cash_reconciled = Yes if funds >= contract, else No
 - Idempotent: only emit a write when the computed value differs from the current value
+- Clearing the payment flips the flag back to No (does not leave a stale Yes).
 
 Deterministic system truth. Feeds `derived-closeout-ready`.
 
@@ -16,7 +18,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from handlers._common import custom_field_map, truthy, unwrap_opportunity
+from handlers._common import custom_field_map, unwrap_opportunity
 
 HANDLER_ID = "derived-closeout-cash-reconciled"
 SUPPORTS_WRITE = True  # ACTIVE (cut over 2026-06-21)
@@ -56,26 +58,25 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
         "current_value": _to_str(current),
     }
 
-    if not truthy(contract_raw) or not truthy(funds_raw):
+    contract = _to_float(contract_raw)
+    if contract is None:
+        # No contract value yet -> the payment target is unknown; leave the field alone.
         return {
             **base,
             "decision": "skip_condition_unmet",
             "reason": (
-                f"need both {FIELD_CONTRACT_VALUE} and {FIELD_FUNDS_RECEIVED} "
-                f"(contract={contract_raw!r}, funds={funds_raw!r})"
+                f"{FIELD_CONTRACT_VALUE} missing/unparseable (contract={contract_raw!r}); "
+                f"cannot determine payment target"
             ),
         }
 
-    contract = _to_float(contract_raw)
+    # Missing, blank, or unparseable funds = $0 received -> not reconciled.
+    # (Fix: clearing/removing the payment now correctly flips the flag back to No,
+    # instead of leaving a stale 'Yes'. This deviates from the spec's "both fields
+    # present" guard, which left the field unchanged when funds were cleared.)
     funds = _to_float(funds_raw)
-    if contract is None or funds is None:
-        return {
-            **base,
-            "decision": "skip_condition_unmet",
-            "reason": (
-                f"could not parse amounts (contract={contract_raw!r}, funds={funds_raw!r})"
-            ),
-        }
+    if funds is None:
+        funds = 0.0
 
     computed = "Yes" if funds >= contract else "No"
 
