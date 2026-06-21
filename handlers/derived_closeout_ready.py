@@ -17,8 +17,8 @@ Spec source: workflow/02-derived/derived-closeout-ready.md  (CR-0003)
 
 This is the gate the P40->P50 mover reads. Adds the Company/Vendor payer path per CR-0003.
 
-Shadow-only for now (SUPPORTS_WRITE=False). Cut over once parity is confirmed AND the
-live "Derived Closeout Ready" GHL workflow is set to Draft.
+ACTIVE writer (cut over 2026-06-21). The live "Derived Closeout Ready" GHL workflow
+must be set to Draft so the two don't double-drive.
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity, yes
 
 HANDLER_ID = "derived-closeout-ready"
-SUPPORTS_WRITE = False  # shadow-only until cutover
+SUPPORTS_WRITE = True  # ACTIVE (cut over 2026-06-21)
 
 PIPELINE_ID_PROD = "88V9uYY6visCrtI9V0NR"
 OUTPUT_FIELD = "sys_closeout_ready"
@@ -66,21 +66,23 @@ def _change_order_resolved(custom: dict[str, Any]) -> bool:
     return False  # unknown treatment value — not resolved
 
 
-def _is_ready(custom: dict[str, Any]) -> bool:
+def _readiness(custom: dict[str, Any]) -> tuple[bool, list[str]]:
+    """Return (is_ready, list_of_missing_items) for clear diagnostics."""
+    missing: list[str] = []
     if not truthy(custom.get("dt_completion_photos_received")):
-        return False
+        missing.append("completion photos")
     if not truthy(custom.get("dt_coc_received")):
-        return False
+        missing.append("certificate of completion (COC)")
     if not truthy(custom.get("dt_final_walkthrough_proof_received")):
-        return False
+        missing.append("final walkthrough")
     if not yes(custom.get("sys_closeout_cash_reconciled")):
-        return False
+        missing.append("cash reconciled (full payment)")
     # Permit only required when seg_permit_required = Yes.
     if yes(custom.get("seg_permit_required")) and not truthy(custom.get("dt_permit_approved")):
-        return False
+        missing.append("permit approved")
     if not _change_order_resolved(custom):
-        return False
-    return True
+        missing.append("change-order payer docs")
+    return (not missing, missing)
 
 
 def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
@@ -102,20 +104,22 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
             "reason": f"pipelineId {pipeline_id!r} is not Production ({PIPELINE_ID_PROD})",
         }
 
-    computed = "Yes" if _is_ready(custom) else "No"
+    ready, missing = _readiness(custom)
+    computed = "Yes" if ready else "No"
+    detail = "all closeout proofs present" if ready else f"still missing: {', '.join(missing)}"
 
     if _to_str(current) == computed:
         return {
             **base,
             "decision": "skip_idempotent",
-            "reason": f"{OUTPUT_FIELD} already {computed}",
+            "reason": f"{OUTPUT_FIELD} already {computed} ({detail})",
         }
 
     return {
         **base,
         "decision": "would_stamp",
         "target_value": computed,
-        "reason": f"closeout readiness recomputed — would set {OUTPUT_FIELD} = {computed}",
+        "reason": f"would set {OUTPUT_FIELD} = {computed} ({detail})",
     }
 
 

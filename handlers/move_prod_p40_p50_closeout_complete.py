@@ -8,8 +8,8 @@ Spec source: workflow/03-move/production/move-prod-p40-p50-closeout-complete.md
 
 sys_closeout_ready is computed by the `derived-closeout-ready` handler.
 
-Shadow-only for now (SUPPORTS_WRITE=False). Cut over to active writes once parity is
-confirmed AND the live "Move P40->P50" GHL workflow is set to Draft.
+ACTIVE writer (cut over 2026-06-21). The live "Move P40->P50" GHL workflow must be
+set to Draft so the two don't double-drive.
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from typing import Any
 from handlers._common import custom_field_map, unwrap_opportunity, yes
 
 HANDLER_ID = "move-prod-p40-p50-closeout-complete"
-SUPPORTS_WRITE = False  # shadow-only until cutover
+SUPPORTS_WRITE = True  # ACTIVE (cut over 2026-06-21)
 
 # GHL pipeline/stage IDs
 PIPELINE_ID_PROD = "88V9uYY6visCrtI9V0NR"

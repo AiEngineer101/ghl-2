@@ -9,8 +9,8 @@ Spec source: workflow/02-derived/derived-closeout-cash-reconciled.md
 
 Deterministic system truth. Feeds `derived-closeout-ready`.
 
-Shadow-only for now (SUPPORTS_WRITE=False). Cut over once parity is confirmed AND the
-live "Derived Closeout Cash Reconciled" GHL workflow is set to Draft.
+ACTIVE writer (cut over 2026-06-21). The live "Derived Closeout Cash Reconciled" GHL
+workflow must be set to Draft so the two don't double-drive.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity
 
 HANDLER_ID = "derived-closeout-cash-reconciled"
-SUPPORTS_WRITE = False  # shadow-only until cutover
+SUPPORTS_WRITE = True  # ACTIVE (cut over 2026-06-21)
 
 FIELD_CONTRACT_VALUE = "amt_contract_value"
 FIELD_FUNDS_RECEIVED = "amt_total_funds_received"
