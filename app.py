@@ -22,6 +22,8 @@ from handlers import (
     derived_closeout_cash_reconciled,
     derived_closeout_ready,
     enforce_stage_truth_invariant,
+    gate_front_home_photo,
+    gate_inspection_complete,
     gate_materials_verified,
     gate_work_completed,
     gate_work_started,
@@ -30,6 +32,7 @@ from handlers import (
     move_prod_p20_p30_work_completed,
     move_prod_p30_p40_closeout_pending,
     move_prod_p40_p50_closeout_complete,
+    move_sales_s10_s20_inspection_complete,
 )
 from models import Decision, Event, Snapshot
 
@@ -51,6 +54,10 @@ HANDLERS = [
     move_prod_p30_p40_closeout_pending,
     move_prod_p40_p50_closeout_complete,
     enforce_stage_truth_invariant,
+    # --- Sales pipeline (SHADOW / watch-only — SUPPORTS_WRITE=False until a test harness exists) ---
+    gate_front_home_photo,
+    gate_inspection_complete,
+    move_sales_s10_s20_inspection_complete,
 ]
 
 

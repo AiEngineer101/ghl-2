@@ -83,7 +83,7 @@ GHL event (Opportunity Changed)  ──webhook──▶  POST /webhook/ghl
 | `move-prod-p20-p30-work-completed` | mover | Job In Progress → Job Completed |
 | `move-prod-p30-p40-closeout-pending` | mover | Job Completed → Closeout Pending |
 | `move-prod-p40-p50-closeout-complete` | mover | Closeout Pending → Closeout Complete |
-| `enforce-stage-truth-invariant` | enforcer | rewinds drifted stages (P05–P30 only) |
+| `enforce-stage-truth-invariant` | enforcer | rewinds drifted stages (P05–P30 ladder) **+ P50 closeout-readiness guardrail → bounce to P40** |
 
 **Cut over to active today (2026-06-21):** the four closeout handlers (`p30-p40`, `p40-p50`, `closeout-cash-reconciled`, `closeout-ready`). Their matching GHL workflows were set to **Draft** by the client: *Move Prod P30→P40*, *Move Prod P40→P50*, *Derived Closeout Ready* (+ a "Needs Review Dup"), *Derived Closeout Cash Reconciled*. (The earlier P05–P30 set was cut over before this session; `WF | Gate | MaterialsVerified` is Draft, `…| Py` is the published webhook bridge.)
 
@@ -96,7 +96,7 @@ GHL event (Opportunity Changed)  ──webhook──▶  POST /webhook/ghl
 
 **Bug fixed today:** `derived-closeout-cash-reconciled` used to *skip* (no write) when an amount was blank, leaving a stale `Yes`. Now a missing/blank payment counts as $0 → `No`. (Requires a contract value to be present; if not, it still skips to avoid spurious writes.)
 
-**Test coverage:** 88 unit tests, all passing (`python -m pytest tests/`).
+**Test coverage:** 92 unit tests, all passing (`python -m pytest tests/`).
 
 ---
 
@@ -157,7 +157,7 @@ When `sys_closeout_ready` flips to Yes, `move-prod-p40-p50` moves the job to Clo
 
 ## 8. Open questions / known gaps
 
-1. **Should an invalid Closeout Complete bounce back?** — **ANSWERED by Bill (06-23).** Yes: `closeout-complete.md` §5 specs a **readiness guardrail** — if a job reaches Closeout Complete while `sys_closeout_ready` ≠ Yes, the Code OS bounces it back to Closeout Pending and surfaces the missing item. **Not yet built in our code** (see §11 / §9). Note: this is about *invalid* entries, not auto-reopening a legitimately-closed job.
+1. **Should an invalid Closeout Complete bounce back?** — **ANSWERED by Bill (06-23), BUILT 2026-06-24.** Yes: `closeout-complete.md` §5 specs a **readiness guardrail** — if a job reaches Closeout Complete while it is not closeout-ready, the Code OS bounces it back to Closeout Pending and surfaces the missing item. ✅ Now implemented in `enforce-stage-truth-invariant` (P50 → P40). Note: this is about *invalid* entries, not auto-reopening a legitimately-closed job.
 2. **"Photos at their own step?"** — **ANSWERED by Bill.** `job-completed.md` confirms completion photos / COC / final walkthrough are **context-only** at Job Completed and **enforced at Closeout Pending** (intentional). Job Completed just auto-advances. Our build matches.
 3. **Document content validation** (is the file genuine?) — still **deferred** to a future AI/OCR feature; human confirmation is today's validator.
 
@@ -165,8 +165,12 @@ When `sys_closeout_ready` flips to Yes, `move-prod-p40-p50` moves the job to Clo
 
 ## 9. Next steps
 
-1. **Production:** done + verified. Remaining polish: decide on the open questions above (esp. closed-reopen and enforcer extension).
-2. **Sales pipeline:** the next build target. ⚠️ **Do NOT touch live Sales** — it's live with no test harness. Need a safe test setup first. The newest Sales→Production handoff + NEXT-tag specs are in the Bill-Kimberlin docs.
+1. **Production:** done + verified. The P50 closeout-readiness guardrail (enforcer extension) is now **built + tested (06-24)** — remaining step is to **deploy + cut it over** (see §11.1 for pre-deploy checks).
+2. **Sales pipeline:** IN PROGRESS (started 06-24). Being built **shadow-first** (`SUPPORTS_WRITE=False` on every Sales handler) precisely because ⚠️ **live Sales has no test harness** — handlers log "would do X" against real events for dashboard validation, and only cut over per-handler once proven (same playbook as Production). Sales stages: Inspection Booked (S10) → Inspection Complete (S20) → Scope Pending/Build Estimate (S30) → Job Pending Approval (S40) → Approved–Funding Pending (S45) → Initial Funding Received (S46) → Handoff To Production (S50) → [cross-pipeline] Production · Ready for Materials.
+   - **Slice 1 BUILT + tested (shadow):** `gate-front-home-photo` (EV→DT, stamps `dt_front_of_home_inspection_photo_received`), `gate-inspection-complete` (TF→DT, stamps `dt_inspection_completed`; requires the front photo first), `move-sales-s10-s20-inspection-complete` (S10→S20 when BOTH durable truths present). 16 new tests (108 total, all passing).
+   - **Spec discrepancy resolved (logged):** the older `move-sales-s10-s20` workflow spec keys the move on raw `tf_inspection_completed=Yes AND ev_front_of_home_inspection_photo present`; the Layer-1 `inspection-booked.md` §4 (newer authority) says move on the durable DTs (`dt_inspection_completed` + `dt_front_of_home_inspection_photo_received`) and "do not move on raw EV presence." **We followed Layer-1.** Noted in the mover docstring.
+   - **Next slices:** S20→S30 is job-type-conditional (Retail pass-through vs Insurance/Hybrid hold for `dt_insurance_scope_received`); then S30→S40→S45→S46→S50 (contract/approvals/funding gates) and the Sales→Production handoff. Specs in Bill-Kimberlin `workflow/03-move/sales/` + `pipelines/sales/`.
+   - Specs extracted to `ghl-2/_sales_specs/` (gitignored working copy — delete when Sales is done).
 3. **Leads** and **Warranty** pipelines: not started.
 4. **Document intake** (SMS / email / upload auto-routed to the right job): the strategic moat. Build after the core pipelines are stable.
 5. **AccuLynx adapter:** first external-CRM integration (adapter-layer pattern; core logic unchanged, thin per-CRM adapter).
@@ -200,5 +204,5 @@ When `sys_closeout_ready` flips to Yes, `move-prod-p40-p50` moves the job to Clo
 
 **NEW build items this update surfaced (NOT yet in our code):**
 
-1. **Closeout Complete readiness guardrail** (`closeout-complete.md` §5, Edge 7) — if a job reaches Closeout Complete while `sys_closeout_ready` ≠ Yes (e.g. manual/owner drag, or proof later breaks), bounce it back to Closeout Pending and surface the specific missing item. This is the spec'd answer to "should an invalid close bounce back?" Buildable now (extends the enforcer to P50). **Behavior change to the live writer — confirm before building.**
+1. ~~**Closeout Complete readiness guardrail**~~ — ✅ **BUILT 2026-06-24.** `enforce-stage-truth-invariant` now guards P50: if a job is at Closeout Complete while not closeout-ready (manual/owner drag, or proof later broke), it bounces the job back to Closeout Pending (P40) and names the missing item. Readiness is **recomputed from the proof fields** (shared `closeout_readiness()` in `derived_closeout_ready.py`), not read from the possibly-stale stored `sys_closeout_ready` flag, so it's correct within the same event. P40 is left alone (valid resting stage, no entry-truth gate). 6 new tests (92 total, all passing). **Still SHADOW vs live: code is merged + tested but NOT yet deployed/cut over** — this is a live-writer behavior change; before deploy, confirm no current P50 job is incomplete (it would be bounced on its next event), and note it now actively interacts with the §6 manual test-reset flow.
 2. **Revenue Adjustments Subsystem** (Change Orders + Supplements) — `closeout-pending.md` §2 conditions 6 & 7 want derived rollups `sys_change_orders_resolved` / `sys_supplements_resolved` (both `[NEW FIELD — to be created]`). Each repeats up to 8×/job (~25% of revenue) and needs **repeating child records**, not opportunity-level single-stamp fields. **Future build** (see Bill's `backlog.md`). Our current code uses the interim CR-0003 change-order logic and does **not** handle Supplements yet.

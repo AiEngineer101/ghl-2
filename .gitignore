@@ -6,3 +6,6 @@ __pycache__/
 *.sqlite
 .venv/
 venv/
+
+# Sales spec working copy extracted from the Bill-Kimberlin docs snapshot (not source code)
+_sales_specs/
