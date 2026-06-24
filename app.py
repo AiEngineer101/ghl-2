@@ -37,6 +37,9 @@ from handlers import (
     move_sales_s20_s30_scope_pending,
     move_sales_s30_s40_job_pending_approval,
     move_sales_s40_s45_funding_pending,
+    move_sales_s45_s46_initial_funding,
+    move_sales_s46_s50_handoff_to_production,
+    move_sales_s50_production_pipeline,
 )
 from models import Decision, Event, Snapshot
 
@@ -66,6 +69,9 @@ HANDLERS = [
     move_sales_s20_s30_scope_pending,
     move_sales_s30_s40_job_pending_approval,
     move_sales_s40_s45_funding_pending,
+    move_sales_s45_s46_initial_funding,
+    move_sales_s46_s50_handoff_to_production,
+    move_sales_s50_production_pipeline,
 ]
 
 

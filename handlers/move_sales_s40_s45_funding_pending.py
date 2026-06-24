@@ -26,7 +26,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity
 
 HANDLER_ID = "move-sales-s40-s45-funding-pending"
-SUPPORTS_WRITE = False  # shadow-first
+SUPPORTS_WRITE = True  # active, opp-scoped via writer guard
 
 PIPELINE_ID_SALES = "9KlQhUS34GzTN9q34WKF"
 STAGE_ID_S40 = "d270f2b4-d14e-4bff-813f-ed02e9e21d10"  # Job Pending Approval
