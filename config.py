@@ -25,8 +25,8 @@ class Settings(BaseSettings):
     # Opp-scoped write allowlist (comma-separated opp IDs). Lets specific TEST opportunities
     # in non-allowlisted pipelines (e.g. a Sales sandbox job) receive active writes WITHOUT
     # opening writes to every opp in that pipeline. Other opps stay protected.
-    # TEMPORARY: contains the current Sales test opp — remove when Sales testing is done.
-    write_allowed_opp_ids: str = "U970gIvE6Q31JKTCGVNw"
+    # TEMPORARY: contains the current Sales test opps — remove when Sales testing is done.
+    write_allowed_opp_ids: str = "U970gIvE6Q31JKTCGVNw,HCkgP9gfjEJmTbN74ORq"
 
     @property
     def write_allowed_pipeline_id_set(self) -> set[str]:
