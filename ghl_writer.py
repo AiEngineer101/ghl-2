@@ -1,11 +1,13 @@
 """GHL write client.
 
-Two-layer safety:
+Two-layer safety (see write_guard.is_write_allowed):
   1. settings.writes_enabled must be True (master switch)
-  2. The opportunity's current pipeline_id must be in the write allowlist
-     (settings.write_allowed_pipeline_id_set) — defaults to Production pipeline only.
+  2. EITHER the opp's current pipeline_id is in the pipeline allowlist
+     (settings.write_allowed_pipeline_id_set — Production only by default),
+     OR the specific opp_id is in the opp allowlist
+     (settings.write_allowed_opp_id_set — scoped test opps).
 
-If either check fails the writer raises WriteNotAllowed and NO request is made.
+If the decision is "not allowed" the writer raises WriteNotAllowed and NO request is made.
 """
 from __future__ import annotations
 
@@ -15,6 +17,7 @@ from typing import Any
 import httpx
 
 from config import settings
+from write_guard import is_write_allowed
 
 log = logging.getLogger("shadow.writer")
 
@@ -33,14 +36,16 @@ class GHLWriter:
             "Accept": "application/json",
         }
 
-    def _enforce(self, current_pipeline_id: str | None) -> None:
-        if not settings.writes_enabled:
-            raise WriteNotAllowed("WRITES_ENABLED=false — refuse to write")
-        allowed = settings.write_allowed_pipeline_id_set
-        if current_pipeline_id not in allowed:
-            raise WriteNotAllowed(
-                f"pipeline {current_pipeline_id!r} is not in write allowlist {sorted(allowed)}"
-            )
+    def _enforce(self, opp_id: str | None, current_pipeline_id: str | None) -> None:
+        allowed, reason = is_write_allowed(
+            opp_id,
+            current_pipeline_id,
+            writes_enabled=settings.writes_enabled,
+            allowed_pipelines=settings.write_allowed_pipeline_id_set,
+            allowed_opps=settings.write_allowed_opp_id_set,
+        )
+        if not allowed:
+            raise WriteNotAllowed(reason)
 
     async def update_opportunity(
         self,
@@ -56,7 +61,7 @@ class GHLWriter:
             updates: Body dict — supports keys like pipelineId, pipelineStageId,
                      customFields (list of {id, field_value}).
         """
-        self._enforce(current_pipeline_id)
+        self._enforce(opp_id, current_pipeline_id)
         log.info(
             "WRITE PUT /opportunities/%s pipeline=%s update_keys=%s",
             opp_id,

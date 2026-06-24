@@ -16,7 +16,11 @@ SPEC DISCREPANCY (resolved in favor of Layer-1, the newer authority):
   Layer-1. (Same one-event-lag model as the Production movers: the gate stamps the DT,
   the next Opportunity Changed event fires the move.)
 
-SHADOW (SUPPORTS_WRITE=False) — Sales watch-only until a test harness exists.
+ACTIVE — but writes are gated per-opp. SUPPORTS_WRITE=True means execute() runs, but the
+writer (write_guard.is_write_allowed) only actually PUTs when the opp is in the opp-allowlist
+(settings.write_allowed_opp_ids) OR its pipeline is allowlisted. Sales is NOT pipeline-
+allowlisted, so this mover only moves the scoped test opp(s); every other live Sales deal is
+blocked at the writer. This is the first Sales write path — keep the opp-allowlist tight.
 """
 from __future__ import annotations
 
@@ -25,7 +29,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity
 
 HANDLER_ID = "move-sales-s10-s20-inspection-complete"
-SUPPORTS_WRITE = False  # shadow-first
+SUPPORTS_WRITE = True  # active, but writer enforces the per-opp allowlist
 
 PIPELINE_ID_SALES = "9KlQhUS34GzTN9q34WKF"
 STAGE_ID_S10 = "7358ceec-e07a-405f-a3c6-f9597a1ddf0d"  # Inspection Booked

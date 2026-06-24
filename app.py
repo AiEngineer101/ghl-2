@@ -24,6 +24,7 @@ from handlers import (
     enforce_stage_truth_invariant,
     gate_front_home_photo,
     gate_inspection_complete,
+    gate_insurance_scope,
     gate_materials_verified,
     gate_work_completed,
     gate_work_started,
@@ -33,6 +34,7 @@ from handlers import (
     move_prod_p30_p40_closeout_pending,
     move_prod_p40_p50_closeout_complete,
     move_sales_s10_s20_inspection_complete,
+    move_sales_s20_s30_scope_pending,
 )
 from models import Decision, Event, Snapshot
 
@@ -57,7 +59,9 @@ HANDLERS = [
     # --- Sales pipeline (SHADOW / watch-only — SUPPORTS_WRITE=False until a test harness exists) ---
     gate_front_home_photo,
     gate_inspection_complete,
+    gate_insurance_scope,
     move_sales_s10_s20_inspection_complete,
+    move_sales_s20_s30_scope_pending,
 ]
 
 
@@ -93,6 +97,7 @@ async def healthz() -> dict[str, Any]:
         "mode": settings.mode,
         "writes_enabled": settings.writes_enabled,
         "write_allowed_pipelines": sorted(settings.write_allowed_pipeline_id_set),
+        "write_allowed_opps": sorted(settings.write_allowed_opp_id_set),
         "location_id": settings.ghl_location_id,
         "handlers": [getattr(h, "HANDLER_ID", h.__name__) for h in HANDLERS],
     }
