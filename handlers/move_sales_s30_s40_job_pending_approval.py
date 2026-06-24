@@ -17,8 +17,9 @@ DESIGN NOTE — no estimate-presented gate handler here:
   D&C gate) and gate the move on it. dt_insurance_scope_received comes from our own
   gate-insurance-scope (slice 2) or the live GHL gate.
 
-ACTIVE/SHADOW: starts shadow (SUPPORTS_WRITE=False); cut over to active (opp-scoped) after
-live validation, same as the S10->S20 / S20->S30 movers.
+ACTIVE — opp-scoped (cut over 06-24 after live shadow validation). SUPPORTS_WRITE=True;
+the writer only PUTs for opp-allowlisted test opps (Sales is not pipeline-allowlisted), so
+this mover only moves the scoped test opp(s); every other live Sales deal is blocked.
 """
 from __future__ import annotations
 
@@ -27,7 +28,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity
 
 HANDLER_ID = "move-sales-s30-s40-job-pending-approval"
-SUPPORTS_WRITE = False  # shadow-first
+SUPPORTS_WRITE = True  # active, but writer enforces the per-opp allowlist
 
 PIPELINE_ID_SALES = "9KlQhUS34GzTN9q34WKF"
 STAGE_ID_S30 = "846fb074-d25d-4e31-a76e-a38b23e4e09c"  # Scope Pending / Build Estimate
