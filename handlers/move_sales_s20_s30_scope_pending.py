@@ -18,7 +18,10 @@ Design note: the live GHL build splits this into a Drafted timed mover (Retail d
 active Insurance/Hybrid scope mover. In the Code OS we collapse both into one job-type-conditional
 mover keyed off durable truth — simpler and it cannot auto-advance Insurance/Hybrid past the hold.
 
-SHADOW (SUPPORTS_WRITE=False) — Sales watch-only until a test harness exists.
+ACTIVE — opp-scoped, like move-sales-s10-s20. SUPPORTS_WRITE=True means execute() runs, but
+the writer (write_guard.is_write_allowed) only PUTs for opps in the opp-allowlist
+(settings.write_allowed_opp_ids). Sales is NOT pipeline-allowlisted, so this mover only moves
+the scoped test opp(s); every other live Sales deal is blocked at the writer.
 """
 from __future__ import annotations
 
@@ -27,7 +30,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity
 
 HANDLER_ID = "move-sales-s20-s30-scope-pending"
-SUPPORTS_WRITE = False  # shadow-first
+SUPPORTS_WRITE = True  # active, but writer enforces the per-opp allowlist
 
 PIPELINE_ID_SALES = "9KlQhUS34GzTN9q34WKF"
 STAGE_ID_S20 = "f66b7a47-61a0-4527-8c23-0b9810e482bc"  # Inspection Complete
