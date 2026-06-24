@@ -36,15 +36,60 @@ def test_no_op_when_not_production():
     assert r["decision"] == "no_op"
 
 
-def test_no_op_when_at_p40_out_of_scope():
+def test_no_op_at_p40_no_entry_gate():
+    """P40 (Closeout Pending) is a valid resting stage — never touched by the enforcer."""
     r = evaluate(_opp(STAGE_ID_P40))
     assert r["decision"] == "no_op"
-    assert "P40/P50" in r["reason"] or "past P30" in r["reason"]
+    # Even with closeout proof entirely absent, P40 is left alone.
+    r2 = evaluate(_opp(STAGE_ID_P40, {"dt_completion_photos_received": ""}))
+    assert r2["decision"] == "no_op"
 
 
-def test_no_op_when_at_p50_out_of_scope():
-    r = evaluate(_opp(STAGE_ID_P50))
+# --- P50 (Closeout Complete) readiness guardrail ---
+
+# Minimal field set that makes closeout_readiness() return ready (no permit, no change order).
+CLOSEOUT_READY = {
+    "dt_completion_photos_received": "2026-06-22",
+    "dt_coc_received": "2026-06-22",
+    "dt_final_walkthrough_proof_received": "2026-06-22",
+    "sys_closeout_cash_reconciled": "Yes",
+}
+
+
+def test_p50_no_op_when_closeout_ready():
+    """A legitimately-closed job stays at P50."""
+    r = evaluate(_opp(STAGE_ID_P50, CLOSEOUT_READY))
     assert r["decision"] == "no_op"
+
+
+def test_p50_bounces_to_p40_when_no_proof():
+    """Manual drag to Closeout Complete with nothing done → bounce back to P40."""
+    r = evaluate(_opp(STAGE_ID_P50))
+    assert r["decision"] == "would_rewind"
+    assert r["target_value"] == STAGE_ID_P40
+
+
+def test_p50_bounces_to_p40_when_one_proof_breaks():
+    """Proof later broke (e.g. COC date cleared) → bounce back and name the missing item."""
+    fields = {**CLOSEOUT_READY}
+    del fields["dt_coc_received"]
+    r = evaluate(_opp(STAGE_ID_P50, fields))
+    assert r["decision"] == "would_rewind"
+    assert r["target_value"] == STAGE_ID_P40
+    assert "COC" in r["reason"] or "completion" in r["reason"].lower()
+
+
+def test_p50_bounces_when_cash_not_reconciled():
+    r = evaluate(_opp(STAGE_ID_P50, {**CLOSEOUT_READY, "sys_closeout_cash_reconciled": "No"}))
+    assert r["decision"] == "would_rewind"
+    assert r["target_value"] == STAGE_ID_P40
+
+
+def test_p50_recomputes_readiness_ignoring_stale_flag():
+    """The guardrail must NOT trust a stale stored sys_closeout_ready=Yes when proof is gone."""
+    r = evaluate(_opp(STAGE_ID_P50, {"sys_closeout_ready": "Yes"}))  # flag set, but no proof
+    assert r["decision"] == "would_rewind"
+    assert r["target_value"] == STAGE_ID_P40
 
 
 def test_no_op_at_p05_with_no_truth():

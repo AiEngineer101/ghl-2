@@ -200,7 +200,7 @@ When `sys_closeout_ready` flips to Yes, `move-prod-p40-p50` moves the job to Clo
 - **CR-0027 — code-first build doctrine LOCKED** into the Charter (Musk Algorithm: question → delete → simplify → accelerate → automate-last; build in code, not the platform, by default). Reinforces our approach.
 - **The closeout Layer-1 stage docs now EXIST** (`job-completed.md`, `closeout-pending.md`, `closeout-complete.md`) — the gap we flagged. **Verified: our closeout logic matches** the written Definition of Done (photos + COC + final walkthrough + permit-if-required + cash reconciled).
 - **New (Sales):** Layer-1 docs for `inspection-booked` + `inspection-complete` — for when we build Sales.
-- **New area:** a **work-order control layer** (`docs/code-project/work-order/`, `docs/ghl-native/work-order-control-layer.md`) — not yet reviewed for code impact.
+- **New area (DESIGN INPUT — do NOT build yet):** the **Work Order engine** (`docs/code-project/work-order/README.md` + `docs/ghl-native/work-order-control-layer.md`). A future control layer between Sales & Production (drafts/validates work orders, recommends evidence-based moves, drafts field issues; object model deferred). Explicitly *not controlled doctrine / no build commitment* — must be reconciled to the SOT first.
 
 **NEW build items this update surfaced (NOT yet in our code):**
 

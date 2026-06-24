@@ -66,8 +66,13 @@ def _change_order_resolved(custom: dict[str, Any]) -> bool:
     return False  # unknown treatment value — not resolved
 
 
-def _readiness(custom: dict[str, Any]) -> tuple[bool, list[str]]:
-    """Return (is_ready, list_of_missing_items) for clear diagnostics."""
+def closeout_readiness(custom: dict[str, Any]) -> tuple[bool, list[str]]:
+    """Return (is_ready, list_of_missing_items) for clear diagnostics.
+
+    Single source of truth for "is this job ready for Closeout Complete?". Used both
+    here (to set sys_closeout_ready) and by the stage-truth enforcer's P50 guardrail,
+    which recomputes readiness rather than trusting the possibly-stale stored flag.
+    """
     missing: list[str] = []
     if not truthy(custom.get("dt_completion_photos_received")):
         missing.append("completion photos")
@@ -104,7 +109,7 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
             "reason": f"pipelineId {pipeline_id!r} is not Production ({PIPELINE_ID_PROD})",
         }
 
-    ready, missing = _readiness(custom)
+    ready, missing = closeout_readiness(custom)
     computed = "Yes" if ready else "No"
     detail = "all closeout proofs present" if ready else f"still missing: {', '.join(missing)}"
 

@@ -11,21 +11,29 @@ This handler runs on every Opportunity Changed event in the Production
 pipeline. It computes the highest stage whose entry requirement is currently
 satisfied, then rewinds the stage if it's higher than that.
 
-Production-pipeline P05–P30 only. P40 (Closeout Pending) and P50 (Closeout Complete)
-have additional truth dependencies (derived-closeout-ready etc.) that aren't
-modeled here yet — opps at P40+ are left alone.
+Two regimes:
+  - P05–P30: a sequential truth ladder (each stage's entry requirement builds on
+    the previous). Rewinds to the highest stage whose truth still holds.
+  - P50 (Closeout Complete): a single-step readiness guardrail. A job may only rest
+    at P50 while closeout readiness is satisfied; if proof is missing (manual/owner
+    drag, or proof later broke), bounce it back to P40 (Closeout Pending) and surface
+    the missing item. Spec: closeout-complete.md §5, Edge 7 (CR answered by Bill 06-23).
+  - P40 (Closeout Pending) is a valid resting stage reached automatically from P30 and
+    has no entry-truth gate of its own — it is left alone.
 
 Stage entry requirements (per the live stage-gate specs):
   P10  requires  dt_install_scheduled is not empty
   P20  requires  tf_work_started   = Yes
   P30  requires  tf_work_completed = Yes
   P05  requires  (nothing — base stage)
+  P50  requires  closeout readiness (recomputed from proof fields; → bounce to P40)
 """
 from __future__ import annotations
 
 from typing import Any
 
 from handlers._common import custom_field_map, truthy, unwrap_opportunity, yes
+from handlers.derived_closeout_ready import closeout_readiness
 
 HANDLER_ID = "enforce-stage-truth-invariant"
 SUPPORTS_WRITE = True  # active writer — performs stage rewinds
@@ -60,8 +68,8 @@ STAGE_LADDER: list[tuple[str, str, Any]] = [
     ),
 ]
 
-# Stages that exist past our managed range — we explicitly do not touch these.
-OUT_OF_SCOPE_STAGES: set[str] = {STAGE_ID_P40, STAGE_ID_P50}
+# P40 (Closeout Pending) is a valid resting stage with no entry-truth gate — left alone.
+# P50 (Closeout Complete) is handled by the dedicated readiness guardrail below.
 
 
 def _stage_index(stage_id: str) -> int | None:
@@ -111,11 +119,33 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
             "reason": f"pipelineId {pipeline_id!r} is not Production ({PIPELINE_ID_PROD})",
         }
 
-    if stage_id in OUT_OF_SCOPE_STAGES:
+    # P40 (Closeout Pending): no entry-truth gate — auto-reached from P30. Left as-is.
+    if stage_id == STAGE_ID_P40:
         return {
             **base,
             "decision": "no_op",
-            "reason": f"stage {stage_id!r} is past P30 (P40/P50 closeout invariants are not modeled here)",
+            "reason": "P40 (Closeout Pending) has no entry-truth gate; left as-is",
+        }
+
+    # P50 (Closeout Complete) readiness guardrail: bounce back to P40 if the job is not
+    # actually closeout-ready. Readiness is recomputed from the proof fields so this stays
+    # correct within the same event even before derived-closeout-ready's write lands.
+    if stage_id == STAGE_ID_P50:
+        ready, missing = closeout_readiness(custom)
+        if ready:
+            return {
+                **base,
+                "decision": "no_op",
+                "reason": "closeout readiness satisfied at P50 (Closeout Complete); no bounce needed",
+            }
+        return {
+            **base,
+            "decision": "would_rewind",
+            "target_value": STAGE_ID_P40,
+            "reason": (
+                "At Closeout Complete (P50) but closeout readiness fails: "
+                f"missing {', '.join(missing)}. Bouncing back to Closeout Pending (P40)."
+            ),
         }
 
     current_idx = _stage_index(stage_id)
