@@ -2,7 +2,7 @@
 
 > **Purpose of this file:** the single place that captures *what we are building, why, where things live, the current state, and what's next* — so context is never lost between sessions or people. Update it whenever something material changes.
 >
-> **Last updated:** 2026-06-21
+> **Last updated:** 2026-06-24
 
 ---
 
@@ -82,17 +82,17 @@ GHL event (Opportunity Changed)  ──webhook──▶  POST /webhook/ghl
 | `move-prod-p10-p20-work-started` | mover | Production Scheduled → Job In Progress |
 | `move-prod-p20-p30-work-completed` | mover | Job In Progress → Job Completed |
 | `move-prod-p30-p40-closeout-pending` | mover | Job Completed → Closeout Pending |
-| `move-prod-p40-p50-closeout-complete` | mover | Closeout Pending → Closed Won |
+| `move-prod-p40-p50-closeout-complete` | mover | Closeout Pending → Closeout Complete |
 | `enforce-stage-truth-invariant` | enforcer | rewinds drifted stages (P05–P30 only) |
 
 **Cut over to active today (2026-06-21):** the four closeout handlers (`p30-p40`, `p40-p50`, `closeout-cash-reconciled`, `closeout-ready`). Their matching GHL workflows were set to **Draft** by the client: *Move Prod P30→P40*, *Move Prod P40→P50*, *Derived Closeout Ready* (+ a "Needs Review Dup"), *Derived Closeout Cash Reconciled*. (The earlier P05–P30 set was cut over before this session; `WF | Gate | MaterialsVerified` is Draft, `…| Py` is the published webhook bridge.)
 
 **Verified live today (end-to-end on test job "Dhruv Singh"):**
-- ✅ Full climb Ready for Materials → Closed Won, driven by proof, no manual dragging.
+- ✅ Full climb Ready for Materials → Closeout Complete, driven by proof, no manual dragging.
 - ✅ At Closeout Pending it correctly **refuses to close** while any proof is missing.
 - ✅ It only closed once all 3 docs + full payment were present.
 - ✅ Drift: clearing work flags rewound the job to the correct earlier stage.
-- ✅ "Closed stays closed" — the system never auto-reopens a Closed Won job.
+- ✅ "Closed stays closed" — the system never auto-reopens a Closeout Complete job.
 
 **Bug fixed today:** `derived-closeout-cash-reconciled` used to *skip* (no write) when an amount was blank, leaving a stale `Yes`. Now a missing/blank payment counts as $0 → `No`. (Requires a contract value to be present; if not, it still skips to avoid spurious writes.)
 
@@ -111,7 +111,7 @@ GHL event (Opportunity Changed)  ──webhook──▶  POST /webhook/ghl
 6. change-order resolved: no CO initiated, OR the chosen payer path is fully documented
    (crew chargeback / company-vendor / billable customer — each needs its own doc(s))
 
-When `sys_closeout_ready` flips to Yes, `move-prod-p40-p50` moves the job to Closed Won.
+When `sys_closeout_ready` flips to Yes, `move-prod-p40-p50` moves the job to Closeout Complete.
 
 ---
 
@@ -149,17 +149,17 @@ When `sys_closeout_ready` flips to Yes, `move-prod-p40-p50` moves the job to Clo
 | P20 | Job In Progress | `ebef66b1-a570-412c-93b3-1be988d6a33f` | `tf_work_started=Yes` |
 | P30 | Job Completed | `96f19b6d-4d85-4e66-910f-4a4f071bf9c0` | `tf_work_completed=Yes` |
 | P40 | Closeout Pending | `bb84bafb-5266-4063-b1f6-bc1ef21a0790` | (auto from P30) |
-| P50 | Closed Won | `de0bc542-b6a0-4885-b991-18ed02b19fe7` | `sys_closeout_ready=Yes` |
+| P50 | Closeout Complete | `de0bc542-b6a0-4885-b991-18ed02b19fe7` | `sys_closeout_ready=Yes` |
 
-**To climb Production by hand (test cheat sheet):** set 🗓️ Install Scheduled → Work Started=Yes → Work Completed=Yes → (auto to Closeout Pending) → upload 3 docs + set funds ≥ contract → Closed Won.
+**To climb Production by hand (test cheat sheet):** set 🗓️ Install Scheduled → Work Started=Yes → Work Completed=Yes → (auto to Closeout Pending) → upload 3 docs + set funds ≥ contract → Closeout Complete.
 
 ---
 
-## 8. Open questions / known gaps (for Bill/product to decide)
+## 8. Open questions / known gaps
 
-1. **Should a Closed Won job auto-reopen if its proof later breaks?** Currently no — the enforcer only guards P05–P30; P40/P50 have no auto-rewind. "Closed stays closed" unless moved by hand.
-2. **Document content validation.** The system checks that a file/stamp *exists*, not that it's a genuine completion certificate. Per the 2026-06-19 meeting, AI/OCR reading of documents (and extracting links from signed docs) was discussed and **deferred** — human confirmation is today's validator.
-3. **Extend the enforcer to P40/P50?** Would let drift protection cover the closeout stages too.
+1. **Should an invalid Closeout Complete bounce back?** — **ANSWERED by Bill (06-23).** Yes: `closeout-complete.md` §5 specs a **readiness guardrail** — if a job reaches Closeout Complete while `sys_closeout_ready` ≠ Yes, the Code OS bounces it back to Closeout Pending and surfaces the missing item. **Not yet built in our code** (see §11 / §9). Note: this is about *invalid* entries, not auto-reopening a legitimately-closed job.
+2. **"Photos at their own step?"** — **ANSWERED by Bill.** `job-completed.md` confirms completion photos / COC / final walkthrough are **context-only** at Job Completed and **enforced at Closeout Pending** (intentional). Job Completed just auto-advances. Our build matches.
+3. **Document content validation** (is the file genuine?) — still **deferred** to a future AI/OCR feature; human confirmation is today's validator.
 
 ---
 
@@ -182,3 +182,23 @@ When `sys_closeout_ready` flips to Yes, `move-prod-p40-p50` moves the job to Clo
 - **Deploy:** push to `main` → Render auto-deploys (~1–2 min). The `/healthz` handler list is a quick sanity check.
 - **Auth:** GitHub access is via a per-session PAT on the `AiEngineer101` account (not stored in-repo). We do **not** have the GHL key, so we cannot write to GHL directly from a dev machine — only the deployed service can (via its `GHL_PIT`).
 - **Checking what happened to a job:** query `/decisions?limit=N` or `/events/{id}` against the live URL — every handler decision is logged with an `executed` flag.
+
+---
+
+## 11. June 24 sync — Bill's docs update (snapshot `smartroofing_repo_2026-06-24.zip`, commit 99787f1, 2026-06-23)
+
+**What changed in Bill's docs and how it affects us:**
+
+- **CR-0026 — final stage renamed `Closed Won` → `Closeout Complete`.** Stage ID **unchanged** (`de0bc542…`), so our handlers (which key on the ID) are functionally unaffected. We updated the **display labels** in our code + this doc to match. ⚠️ Bill still needs to rename the **live GHL stage display** (it currently still reads "Closed Won"); Stage ID is the binding identifier in the interim.
+- **CR-0024 — final-walkthrough field key confirmed** as `ev_final_walkthrough_proof` / `dt_final_walkthrough_proof_received`. **Our code already uses the correct key.** ✅
+- **CR-0025 — COC required for ALL job types** (was mis-tagged Insurance/Hybrid-only). Mechanic unchanged (`dt_coc_received` not empty). **Our code already requires it for all.** ✅ (COC evidence field is `ev_coc_document`.)
+- **CR-0022 — invented stage codes (P05/S10/PL_*) deprecated**; names + GHL IDs are canonical. We already resolve by Stage ID. ✅ (Note: our movers still *write* `sys_last_good_stage_code = P50` etc. — that's the legacy last-good tracking per the move spec's `fields_written`, not stage identity.)
+- **CR-0027 — code-first build doctrine LOCKED** into the Charter (Musk Algorithm: question → delete → simplify → accelerate → automate-last; build in code, not the platform, by default). Reinforces our approach.
+- **The closeout Layer-1 stage docs now EXIST** (`job-completed.md`, `closeout-pending.md`, `closeout-complete.md`) — the gap we flagged. **Verified: our closeout logic matches** the written Definition of Done (photos + COC + final walkthrough + permit-if-required + cash reconciled).
+- **New (Sales):** Layer-1 docs for `inspection-booked` + `inspection-complete` — for when we build Sales.
+- **New area:** a **work-order control layer** (`docs/code-project/work-order/`, `docs/ghl-native/work-order-control-layer.md`) — not yet reviewed for code impact.
+
+**NEW build items this update surfaced (NOT yet in our code):**
+
+1. **Closeout Complete readiness guardrail** (`closeout-complete.md` §5, Edge 7) — if a job reaches Closeout Complete while `sys_closeout_ready` ≠ Yes (e.g. manual/owner drag, or proof later breaks), bounce it back to Closeout Pending and surface the specific missing item. This is the spec'd answer to "should an invalid close bounce back?" Buildable now (extends the enforcer to P50). **Behavior change to the live writer — confirm before building.**
+2. **Revenue Adjustments Subsystem** (Change Orders + Supplements) — `closeout-pending.md` §2 conditions 6 & 7 want derived rollups `sys_change_orders_resolved` / `sys_supplements_resolved` (both `[NEW FIELD — to be created]`). Each repeats up to 8×/job (~25% of revenue) and needs **repeating child records**, not opportunity-level single-stamp fields. **Future build** (see Bill's `backlog.md`). Our current code uses the interim CR-0003 change-order logic and does **not** handle Supplements yet.

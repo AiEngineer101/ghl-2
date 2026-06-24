@@ -11,7 +11,7 @@ This handler runs on every Opportunity Changed event in the Production
 pipeline. It computes the highest stage whose entry requirement is currently
 satisfied, then rewinds the stage if it's higher than that.
 
-Production-pipeline P05–P30 only. P40 (Closeout Pending) and P50 (Closed Won)
+Production-pipeline P05–P30 only. P40 (Closeout Pending) and P50 (Closeout Complete)
 have additional truth dependencies (derived-closeout-ready etc.) that aren't
 modeled here yet — opps at P40+ are left alone.
 

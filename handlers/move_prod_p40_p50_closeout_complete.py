@@ -3,7 +3,7 @@
 Spec source: workflow/03-move/production/move-prod-p40-p50-closeout-complete.md
 - Trigger (live): Opportunity Changed, "Custom field updated: sys_closeout_ready"
 - IF: Pipeline=Production AND Stage=P40 AND sys_closeout_ready=Yes
-- DO: Move to PL_PROD / P50 (Closed Won)
+- DO: Move to PL_PROD / P50 (Closeout Complete; renamed from "Closed Won" per CR-0026)
 - Idempotent: skip if already at P50
 
 sys_closeout_ready is computed by the `derived-closeout-ready` handler.
@@ -52,7 +52,7 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
         return {
             **base,
             "decision": "skip_idempotent",
-            "reason": "Already at P50 (Closed Won); no advancement needed",
+            "reason": "Already at P50 (Closeout Complete); no advancement needed",
         }
 
     if stage_id != STAGE_ID_P40:
@@ -75,7 +75,7 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
         "target_value": STAGE_ID_P50,
         "reason": (
             f"At P40 with {INPUT_FIELD_CLOSEOUT_READY}=Yes — "
-            f"would move to P50 (Closed Won)"
+            f"would move to P50 (Closeout Complete)"
         ),
     }
 
