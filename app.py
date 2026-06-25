@@ -108,6 +108,7 @@ async def healthz() -> dict[str, Any]:
         "writes_enabled": settings.writes_enabled,
         "write_allowed_pipelines": sorted(settings.write_allowed_pipeline_id_set),
         "write_allowed_opps": sorted(settings.write_allowed_opp_id_set),
+        "write_live_handlers": sorted(settings.write_live_handler_set),
         "location_id": settings.ghl_location_id,
         "handlers": [getattr(h, "HANDLER_ID", h.__name__) for h in HANDLERS],
     }

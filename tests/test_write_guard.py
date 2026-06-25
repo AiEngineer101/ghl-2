@@ -15,13 +15,20 @@ from write_guard import is_write_allowed  # noqa: E402
 PROD = "88V9uYY6visCrtI9V0NR"
 SALES = "9KlQhUS34GzTN9q34WKF"
 TEST_OPP = "U970gIvE6Q31JKTCGVNw"
+LIVE_HANDLER = "move-sales-s10-s20-inspection-complete"
 PIPELINES = {PROD}          # Production-only pipeline allowlist (the live default)
 OPPS = {TEST_OPP}           # one scoped Sales test opp
 
 
-def _allowed(opp, pipeline, writes=True):
+def _allowed(opp, pipeline, writes=True, handler=None, handlers=None):
     ok, _ = is_write_allowed(
-        opp, pipeline, writes_enabled=writes, allowed_pipelines=PIPELINES, allowed_opps=OPPS
+        opp,
+        pipeline,
+        writes_enabled=writes,
+        allowed_pipelines=PIPELINES,
+        allowed_opps=OPPS,
+        handler_id=handler,
+        allowed_handlers=handlers,
     )
     return ok
 
@@ -55,3 +62,33 @@ def test_reason_is_informative_when_blocked():
     )
     assert ok is False
     assert "not writable" in reason
+
+
+# --- Per-handler "pipeline-live" allowlist (the Sales cutover knob) ---
+
+def test_handler_allowlist_lets_any_sales_opp_write_for_that_handler():
+    """A live handler may write to ANY (non-test) Sales opp — this is the cutover unit."""
+    assert _allowed("some-other-sales-opp", SALES, handler=LIVE_HANDLER,
+                    handlers={LIVE_HANDLER}) is True
+
+
+def test_other_handler_still_blocked_for_same_sales_opp():
+    """Only the allowlisted handler goes live; a different mover still can't write that opp."""
+    assert _allowed("some-other-sales-opp", SALES, handler="move-sales-s20-s30-scope-pending",
+                    handlers={LIVE_HANDLER}) is False
+
+
+def test_handler_allowlist_still_respects_master_switch():
+    assert _allowed("some-other-sales-opp", SALES, writes=False, handler=LIVE_HANDLER,
+                    handlers={LIVE_HANDLER}) is False
+
+
+def test_empty_handler_allowlist_is_a_no_op():
+    """Default (no handlers listed) leaves behaviour exactly as the pipeline/opp rules dictate."""
+    assert _allowed("some-other-sales-opp", SALES, handler=LIVE_HANDLER, handlers=set()) is False
+    assert _allowed("some-other-sales-opp", SALES, handler=LIVE_HANDLER, handlers=None) is False
+
+
+def test_handler_none_does_not_match_allowlist():
+    """A write with no handler_id can't be authorized by the handler rule."""
+    assert _allowed("some-other-sales-opp", SALES, handler=None, handlers={LIVE_HANDLER}) is False

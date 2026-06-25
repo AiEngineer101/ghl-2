@@ -36,13 +36,20 @@ class GHLWriter:
             "Accept": "application/json",
         }
 
-    def _enforce(self, opp_id: str | None, current_pipeline_id: str | None) -> None:
+    def _enforce(
+        self,
+        opp_id: str | None,
+        current_pipeline_id: str | None,
+        handler_id: str | None,
+    ) -> None:
         allowed, reason = is_write_allowed(
             opp_id,
             current_pipeline_id,
             writes_enabled=settings.writes_enabled,
             allowed_pipelines=settings.write_allowed_pipeline_id_set,
             allowed_opps=settings.write_allowed_opp_id_set,
+            handler_id=handler_id,
+            allowed_handlers=settings.write_live_handler_set,
         )
         if not allowed:
             raise WriteNotAllowed(reason)
@@ -52,6 +59,7 @@ class GHLWriter:
         opp_id: str,
         current_pipeline_id: str | None,
         updates: dict[str, Any],
+        handler_id: str | None = None,
     ) -> dict[str, Any]:
         """PUT /opportunities/{id} with the given updates.
 
@@ -60,8 +68,9 @@ class GHLWriter:
             current_pipeline_id: Pipeline the opp is CURRENTLY in (for allowlist check).
             updates: Body dict — supports keys like pipelineId, pipelineStageId,
                      customFields (list of {id, field_value}).
+            handler_id: ID of the calling handler (for the per-handler write allowlist).
         """
-        self._enforce(opp_id, current_pipeline_id)
+        self._enforce(opp_id, current_pipeline_id, handler_id)
         log.info(
             "WRITE PUT /opportunities/%s pipeline=%s update_keys=%s",
             opp_id,

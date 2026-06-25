@@ -81,5 +81,7 @@ async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[st
         return {"executed": False, "reason": "missing opp_id"}
 
     updates = {"pipelineId": PIPELINE_ID_PROD, "pipelineStageId": STAGE_ID_P05}
-    response = await writer.update_opportunity(opp_id, current_pipeline_id, updates)
+    response = await writer.update_opportunity(
+        opp_id, current_pipeline_id, updates, handler_id=HANDLER_ID
+    )
     return {"executed": True, "response": response, "applied": updates}

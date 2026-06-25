@@ -41,7 +41,9 @@ async def stamp_custom_field(
     updates = {
         "customFields": [{"id": fid, "field_value": target_value}],
     }
-    response = await writer.update_opportunity(opp_id, pipeline_id, updates)
+    response = await writer.update_opportunity(
+        opp_id, pipeline_id, updates, handler_id=decision.get("handler_id")
+    )
     return {"executed": True, "response": response, "applied": updates}
 
 
@@ -64,5 +66,7 @@ async def move_stage(
         return {"executed": False, "reason": "missing opp_id or target_value"}
 
     updates = {"pipelineStageId": target_stage_id}
-    response = await writer.update_opportunity(opp_id, pipeline_id, updates)
+    response = await writer.update_opportunity(
+        opp_id, pipeline_id, updates, handler_id=decision.get("handler_id")
+    )
     return {"executed": True, "response": response, "applied": updates}
