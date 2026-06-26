@@ -21,6 +21,7 @@ from ghl_client import ghl
 from handlers import (
     derived_closeout_cash_reconciled,
     derived_closeout_ready,
+    derived_production_readiness,
     enforce_stage_truth_invariant,
     gate_front_home_photo,
     gate_inspection_complete,
@@ -67,6 +68,7 @@ HANDLERS = [
     gate_front_home_photo,
     gate_inspection_complete,
     gate_insurance_scope,
+    derived_production_readiness,
     move_sales_s10_s20_inspection_complete,
     move_sales_s20_s30_scope_pending,
     move_sales_s30_s40_job_pending_approval,
