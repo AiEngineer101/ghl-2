@@ -9,7 +9,8 @@ Spec source: workflow/01-gates/ev-to-dt/gate-insurance-scope.md
 Not job-type-gated: the gate just stamps when the scope doc is present (Retail jobs
 never have one). Job-type branching happens at the S20->S30 mover.
 
-SHADOW (SUPPORTS_WRITE=False) — Sales watch-only until a test harness exists.
+ACTIVE — opp-scoped (writer enforces the per-opp/pipeline allowlist). Python stamps the DT
+itself rather than relying on the live GHL gate; both are idempotent on the write-once date.
 """
 from __future__ import annotations
 
@@ -19,7 +20,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity
 
 HANDLER_ID = "gate-insurance-scope"
-SUPPORTS_WRITE = False  # shadow-first
+SUPPORTS_WRITE = True  # active, writer enforces the per-opp/pipeline allowlist
 
 PIPELINE_ID_SALES = "9KlQhUS34GzTN9q34WKF"
 INPUT_FIELD = "ev_insurance_scope_doc"

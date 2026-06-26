@@ -10,7 +10,8 @@ Spec source: workflow/01-gates/tf-to-dt/gate-inspection-complete.md
 The required-photo precondition means inspection-complete truth is only earned once the
 front-of-home proof photo exists (the front-photo EV->DT gate stamps the photo's own DT).
 
-SHADOW (SUPPORTS_WRITE=False) — Sales watch-only until a test harness exists.
+ACTIVE — opp-scoped (writer enforces the per-opp/pipeline allowlist). Python stamps the DT
+itself rather than relying on the live GHL gate; both are idempotent on the write-once date.
 """
 from __future__ import annotations
 
@@ -20,7 +21,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity, yes
 
 HANDLER_ID = "gate-inspection-complete"
-SUPPORTS_WRITE = False  # shadow-first
+SUPPORTS_WRITE = True  # active, writer enforces the per-opp/pipeline allowlist
 
 PIPELINE_ID_SALES = "9KlQhUS34GzTN9q34WKF"
 INPUT_FIELD = "tf_inspection_completed"

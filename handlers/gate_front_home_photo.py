@@ -7,8 +7,11 @@ Spec source: workflow/01-gates/ev-to-dt/gate-front-home-photo.md (CR-0001)
 - DO: if dt_front_of_home_inspection_photo_received is empty -> set it = Today
 - Idempotent: DT_received is stamped once (write-once).
 
-SHADOW (SUPPORTS_WRITE=False) — Sales is live with no test harness yet, so every new
-Sales handler is added watch-only and validated on the dashboard before any cutover.
+ACTIVE — opp-scoped, like the Sales movers. SUPPORTS_WRITE=True means execute() runs, but
+the writer (write_guard.is_write_allowed) only PUTs when the opp is in the opp-allowlist OR
+its pipeline is allowlisted — so Python stamps the DT itself instead of relying on the live
+GHL gate workflow. The GHL gate is idempotent against this (both write the same write-once
+date), so they can run side by side until the GHL gate is Drafted.
 """
 from __future__ import annotations
 
@@ -18,7 +21,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity
 
 HANDLER_ID = "gate-front-home-photo"
-SUPPORTS_WRITE = False  # shadow-first
+SUPPORTS_WRITE = True  # active, writer enforces the per-opp/pipeline allowlist
 
 PIPELINE_ID_SALES = "9KlQhUS34GzTN9q34WKF"
 INPUT_FIELD = "ev_front_of_home_inspection_photo"

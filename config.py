@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # in non-allowlisted pipelines (e.g. a Sales sandbox job) receive active writes WITHOUT
     # opening writes to every opp in that pipeline. Other opps stay protected.
     # TEMPORARY: contains the current Sales test opps — remove when Sales testing is done.
-    write_allowed_opp_ids: str = "U970gIvE6Q31JKTCGVNw,HCkgP9gfjEJmTbN74ORq,YlKKKJ1WM6UaG5kIDh1h"
+    write_allowed_opp_ids: str = "U970gIvE6Q31JKTCGVNw,HCkgP9gfjEJmTbN74ORq,YlKKKJ1WM6UaG5kIDh1h,rCZ51hZFEFO9EMaenXVZ"
 
     # Per-handler write allowlist (comma-separated HANDLER_IDs). A handler listed here may write
     # to ANY opp it acts on — and since each mover self-scopes to its own pipeline+stage in
