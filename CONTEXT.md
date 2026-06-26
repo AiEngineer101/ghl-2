@@ -2,7 +2,7 @@
 
 > **Purpose of this file:** the single place that captures *what we are building, why, where things live, the current state, and what's next* — so context is never lost between sessions or people. Update it whenever something material changes.
 >
-> **Last updated:** 2026-06-24
+> **Last updated:** 2026-06-26
 
 ---
 
@@ -230,3 +230,28 @@ When `sys_closeout_ready` flips to Yes, `move-prod-p40-p50` moves the job to Clo
 
 1. ~~**Closeout Complete readiness guardrail**~~ — ✅ **BUILT 2026-06-24.** `enforce-stage-truth-invariant` now guards P50: if a job is at Closeout Complete while not closeout-ready (manual/owner drag, or proof later broke), it bounces the job back to Closeout Pending (P40) and names the missing item. Readiness is **recomputed from the proof fields** (shared `closeout_readiness()` in `derived_closeout_ready.py`), not read from the possibly-stale stored `sys_closeout_ready` flag, so it's correct within the same event. P40 is left alone (valid resting stage, no entry-truth gate). 6 new tests (92 total, all passing). **Still SHADOW vs live: code is merged + tested but NOT yet deployed/cut over** — this is a live-writer behavior change; before deploy, confirm no current P50 job is incomplete (it would be bounced on its next event), and note it now actively interacts with the §6 manual test-reset flow.
 2. **Revenue Adjustments Subsystem** (Change Orders + Supplements) — `closeout-pending.md` §2 conditions 6 & 7 want derived rollups `sys_change_orders_resolved` / `sys_supplements_resolved` (both `[NEW FIELD — to be created]`). Each repeats up to 8×/job (~25% of revenue) and needs **repeating child records**, not opportunity-level single-stamp fields. **Future build** (see Bill's `backlog.md`). Our current code uses the interim CR-0003 change-order logic and does **not** handle Supplements yet.
+
+---
+
+## 12. June 26 — Sales gates active + webhook bridge LIVE + full auto-validation
+
+**Headline: the Sales pipeline now runs end-to-end AUTOMATICALLY (GHL webhook → our code), validated live.** Test count **194** (was 166).
+
+**What shipped today:**
+- **`WRITE_LIVE_HANDLERS` per-handler cutover knob** (`write_guard.py` 3rd scope dimension + `config.py` + threaded `handler_id` through `_writers`/`ghl_writer`). Lets a single mover go pipeline-wide for real deals one stage at a time. Empty default = inert. Surfaced in `/healthz`.
+- **3 Sales gates cut over to ACTIVE** (`gate-front-home-photo`, `gate-inspection-complete`, `gate-insurance-scope` → `SUPPORTS_WRITE=True`). Python now stamps the Sales `dt_*` dates itself (opp-scoped via writer). Idempotent vs the live GHL gates (both write the same write-once date).
+- **Webhook payload fix** — GHL's **default** custom-data webhook puts opp fields at the ROOT (`id`, `pipeline_id`, `opportunity_name`…) with no `type`/`opportunity_id`/`customData`, so the old extractor dropped it. Added step 5 (root `id` + an opp marker). Refactored pure extraction into **`webhook_payload.py`** (deps-free, testable like `write_guard.py`).
+- **`derived-production-readiness` handler BUILT** (`derived_production_readiness.py`, registered before the Sales movers) — computes `sys_production_readiness` from the job-type rollup (handoff-to-production.md §6), stricter permit gate (UNSET permit = not ready), missing-items diagnostic in the reason. **Closes the last "derived gap"** — our code no longer just reads readiness, it computes it. ACTIVE, opp-scoped.
+
+**Webhook bridge is LIVE (the big unlock):** the client created `WF | Shadow | Opportunity Changed Bridge (Sales)` (Opportunity Changed → Webhook POST to `/webhook/ghl` with `X-Webhook-Secret`). Confirmed `WEBHOOK_SECRET` IS set + enforced on Render (probe: no/wrong secret → 401). **Key gotcha: "Allow Re-Entry" MUST be ON** — without it an opp enrolls once and later changes don't re-fire (this exactly explained "fired once then silent"). Also: GHL's Opportunity-Changed trigger is reliable on stage/value changes, laggy on custom-field-only edits.
+
+**FULL PIPELINE VALIDATED LIVE, AUTOMATICALLY 2026-06-26** on Retail test opp **`rCZ51hZFEFO9EMaenXVZ`** (now in the write-allowlist alongside `YlKKKJ1WM6UaG5kIDh1h`): rode **S10→…→S50→Production/P05, every move executed by our code, triggered by GHL webhooks** (not manual replay), each confirmed via `executed=True` from a `source=webhook` event. The inspection-complete **gate** was also proven Python-owned (Drafted the GHL InspectionComplete gate → our code stamped `dt_inspection_completed`, `executed=True`, then `skip_idempotent`). Only manual nudge was setting `sys_production_readiness=Yes` (now superseded by the new derived handler).
+- Note: GHL Sales **move** workflows are still Published, so some moves race — our code won S30→S40/S40→S45/S45→S46/S46→S50/S50→P05 here, but earlier (before drafting) GHL won S40→S45 / S40→S46-skip. There is **no standalone GHL "S10→S20" or "S45→S46" workflow** — those moves are embedded in other automations / the de-branched funding workflow.
+
+**Migration status — Sales is feature-complete in code; remaining is the coordinated CUTOVER:**
+1. **Pipeline-wide writes NOT yet on** — still **opp-scoped** (allowlist: `U970…`, `HCkgP9…`, `YlKK…`, `rCZ51…`). The Sales→pipeline-allowlist change was staged then reverted to keep tests opp-scoped; flip `WRITE_ALLOWED_PIPELINE_IDS += 9KlQhUS34GzTN9q34WKF` (or list each handler in `WRITE_LIVE_HANDLERS`) when ready for ALL real deals.
+2. **Draft the live GHL Sales MOVE workflows** (+ the production-readiness derived workflow) so they stop racing our code — only AFTER pipeline-wide writes are on, else real deals strand.
+3. **KEEP PUBLISHED (Python doesn't own these):** the **D&C `EstimatePresented` gate** (stamps `dt_estimate_presented` from a Documents&Contracts "Sent" event our service never receives) and any gate whose Python side is still shadow. The 3 Sales gates above ARE now active, so their GHL gates can be Drafted after per-gate validation (only InspectionComplete validated so far; front-photo + insurance-scope still rely on GHL).
+4. **Measurement report is context-only** (`ev_measurement_report`/`dt_measurement_report_received`) — NOT a stage-exit gate; it only feeds production-readiness. (Caused confusion: adding it does not move S30→S40; `dt_estimate_presented` does.)
+
+**KNOWN GAP (still open):** Sales movers don't stamp `sys_last_good_stage_code`. **Diagrams:** `docs/sales-pipeline-diagram.md` (Mermaid).
