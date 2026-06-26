@@ -20,7 +20,10 @@ class Settings(BaseSettings):
     # write_allowed_pipeline_ids is a comma-separated allowlist enforced inside the writer
     # itself (defense in depth). Default: only the Production pipeline.
     writes_enabled: bool = False
-    write_allowed_pipeline_ids: str = "88V9uYY6visCrtI9V0NR"
+    # Production (88V9…) + Sales (9KlQ…) are both fully code-owned now — writes allowed for
+    # EVERY opp in these pipelines (Sales cut over pipeline-wide 2026-06-26). The opp-allowlist
+    # below is now redundant for Sales but kept (harmless) for any other scoped testing.
+    write_allowed_pipeline_ids: str = "88V9uYY6visCrtI9V0NR,9KlQhUS34GzTN9q34WKF"
 
     # Opp-scoped write allowlist (comma-separated opp IDs). Lets specific TEST opportunities
     # in non-allowlisted pipelines (e.g. a Sales sandbox job) receive active writes WITHOUT
