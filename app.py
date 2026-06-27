@@ -123,6 +123,45 @@ async def debug_field_keys(contains: str = "") -> dict[str, Any]:
     return {"total": len(id_to_key), "matched": len(keys), "keys": keys}
 
 
+@app.get("/debug/test-write-lastgood/{opp_id}")
+async def debug_test_write_lastgood(opp_id: str, value: str = "DBG-TEST") -> dict[str, Any]:
+    """DIAGNOSTIC (temporary): write `value` to sys_last_good_stage_code, then read it back.
+
+    Definitively answers whether that field is writable via the API (before != after) or
+    silently rejected (before == after). Uses the normal writer (guard applies).
+    """
+    from handlers._common import custom_field_map
+    from ghl_writer import writer
+
+    async def _read() -> tuple[str | None, str | None]:
+        full = await ghl.get_opportunity(opp_id)
+        opp = full.get("opportunity", full)
+        id_to_key = await ghl.get_opportunity_field_key_map()
+        for cf in opp.get("customFields", []) or []:
+            if isinstance(cf, dict) and not cf.get("fieldKey"):
+                cf["fieldKey"] = id_to_key.get(cf.get("id"), "")
+        return opp.get("pipelineId"), custom_field_map(opp).get("sys_last_good_stage_code")
+
+    pipeline_id, before = await _read()
+    id_to_key = await ghl.get_opportunity_field_key_map()
+    fid = {v: k for k, v in id_to_key.items()}.get("sys_last_good_stage_code")
+    wrote_resp_keys = None
+    if fid:
+        resp = await writer.update_opportunity(
+            opp_id, pipeline_id, {"customFields": [{"id": fid, "field_value": value}]}
+        )
+        wrote_resp_keys = sorted(resp.keys()) if isinstance(resp, dict) else str(type(resp))
+    _, after = await _read()
+    return {
+        "field_id": fid,
+        "before": before,
+        "wrote": value,
+        "after": after,
+        "write_persisted": before != after and after == value,
+        "write_response_keys": wrote_resp_keys,
+    }
+
+
 @app.get("/debug/opp-fields/{opp_id}")
 async def debug_opp_fields(opp_id: str, contains: str = "") -> dict[str, Any]:
     """Read-only: dump an opp's custom fields (key -> value) as our code sees them.
