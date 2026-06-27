@@ -109,60 +109,6 @@ async def dashboard() -> FileResponse:
     return FileResponse(_DASHBOARD_PATH, media_type="text/html")
 
 
-@app.get("/debug/field-keys")
-async def debug_field_keys(contains: str = "") -> dict[str, Any]:
-    """Read-only: dump the opportunity custom-field key map (GHL field id -> short key).
-
-    Diagnostic for write-resolution issues (e.g. is 'sys_last_good_stage_code' a real key?).
-    Optional ?contains= filters to keys containing the substring.
-    """
-    id_to_key = await ghl.get_opportunity_field_key_map()
-    keys = sorted(id_to_key.values())
-    if contains:
-        keys = [k for k in keys if contains.lower() in k.lower()]
-    return {"total": len(id_to_key), "matched": len(keys), "keys": keys}
-
-
-@app.get("/debug/workflows")
-async def debug_workflows(contains: str = "") -> dict[str, Any]:
-    """Read-only: list GHL workflows (name + status). Optional ?contains= filter."""
-    wfs = await ghl.get_workflows()
-    rows = [{"name": w.get("name"), "status": w.get("status"), "id": w.get("id")} for w in wfs]
-    if contains:
-        rows = [r for r in rows if contains.lower() in str(r["name"]).lower()]
-    rows.sort(key=lambda r: str(r["name"]))
-    return {"total": len(wfs), "matched": len(rows), "workflows": rows}
-
-
-@app.get("/debug/opp-fields/{opp_id}")
-async def debug_opp_fields(opp_id: str, contains: str = "") -> dict[str, Any]:
-    """Read-only: dump an opp's custom fields (key -> value) as our code sees them.
-
-    Confirms what GHL actually persisted (e.g. did sys_last_good_stage_code take our write?).
-    Optional ?contains= filters keys by substring.
-    """
-    from handlers._common import custom_field_map
-
-    full = await ghl.get_opportunity(opp_id)
-    opp = full.get("opportunity", full)
-    try:
-        id_to_key = await ghl.get_opportunity_field_key_map()
-        for cf in opp.get("customFields", []) or []:
-            if isinstance(cf, dict) and not cf.get("fieldKey"):
-                cf["fieldKey"] = id_to_key.get(cf.get("id"), "")
-    except Exception:
-        pass
-    fields = custom_field_map(opp)
-    if contains:
-        fields = {k: v for k, v in fields.items() if contains.lower() in k.lower()}
-    return {
-        "opp_id": opp_id,
-        "pipelineId": opp.get("pipelineId"),
-        "pipelineStageId": opp.get("pipelineStageId"),
-        "fields": fields,
-    }
-
-
 @app.get("/healthz")
 async def healthz() -> dict[str, Any]:
     return {

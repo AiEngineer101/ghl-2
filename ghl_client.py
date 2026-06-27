@@ -63,17 +63,6 @@ class GHLReadOnlyClient:
             r.raise_for_status()
             return r.json().get("opportunities", [])
 
-    async def get_workflows(self) -> list[dict[str, Any]]:
-        """Read-only: list the location's workflows (id, name, status)."""
-        async with httpx.AsyncClient(timeout=10) as c:
-            r = await c.get(
-                f"{self.base}/workflows/",
-                headers=self.headers,
-                params={"locationId": settings.ghl_location_id},
-            )
-            r.raise_for_status()
-            return r.json().get("workflows", [])
-
     async def get_opportunity_field_key_map(self) -> dict[str, str]:
         """Return {field_id: short_field_key} for opportunity custom fields.
 
