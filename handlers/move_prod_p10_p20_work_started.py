@@ -148,41 +148,13 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
-    """Perform the P10→P20 (or P05→P20) move via the GHL writer.
+    """Perform the P10->P20 (or P05->P20) move + stamp sys_last_good_* (P20).
 
-    Only called when decision is would_move AND writes are enabled.
+    Uses the shared writer path, which stamps the last-good audit fields with the
+    correct GHL `field_value` key (this mover previously used `value`, which GHL
+    silently ignored — that was the real "last-good not persisting" bug here).
     """
-    from ghl_client import ghl
-    from ghl_writer import writer
-
-    if decision.get("decision") != "would_move":
-        return {"executed": False, "reason": "decision is not would_move"}
-
-    opp = unwrap_opportunity({"opportunity": opp_data})
-    opp_id = opp.get("id")
-    pipeline_id = opp.get("pipelineId")
-    if not opp_id:
-        return {"executed": False, "reason": "missing opp_id"}
-
-    # Per spec we should also stamp sys_last_good_* (audit ledger). The first
-    # attempt with `field_value` was silently ignored by GHL on the P05->P10
-    # move; trying `value` here for parity with /opportunities/{id} PATCH-style
-    # payloads. The stage move via top-level pipelineStageId is the must-have;
-    # the customFields portion is best-effort.
-    id_to_key = await ghl.get_opportunity_field_key_map()
-    key_to_id = {v: k for k, v in id_to_key.items()}
-    custom_fields = []
-    for key, value in (
-        ("sys_last_good_pipeline_code", "PL_PROD"),
-        ("sys_last_good_stage_code", "P20"),
-    ):
-        fid = key_to_id.get(key)
-        if fid:
-            custom_fields.append({"id": fid, "value": value})
-
-    updates: dict[str, Any] = {"pipelineStageId": STAGE_ID_P20}
-    if custom_fields:
-        updates["customFields"] = custom_fields
-
-    response = await writer.update_opportunity(opp_id, pipeline_id, updates)
-    return {"executed": True, "response": response, "applied": updates}
+    from handlers._writers import move_stage
+    return await move_stage(
+        opp_data, decision, last_good_stage_code="P20", last_good_pipeline_code="PL_PROD"
+    )

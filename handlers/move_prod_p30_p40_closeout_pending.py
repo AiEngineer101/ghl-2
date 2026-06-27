@@ -70,33 +70,8 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
-    """Perform the P30->P40 move and stamp sys_last_good_* via the GHL writer."""
-    from ghl_client import ghl
-    from ghl_writer import writer
-
-    if decision.get("decision") != "would_move":
-        return {"executed": False, "reason": "decision is not would_move"}
-
-    opp = unwrap_opportunity({"opportunity": opp_data})
-    opp_id = opp.get("id")
-    pipeline_id = opp.get("pipelineId")
-    if not opp_id:
-        return {"executed": False, "reason": "missing opp_id"}
-
-    id_to_key = await ghl.get_opportunity_field_key_map()
-    key_to_id = {v: k for k, v in id_to_key.items()}
-    custom_fields = []
-    for key, value in (
-        ("sys_last_good_pipeline_code", "PL_PROD"),
-        ("sys_last_good_stage_code", "P40"),
-    ):
-        fid = key_to_id.get(key)
-        if fid:
-            custom_fields.append({"id": fid, "field_value": value})
-
-    updates: dict[str, Any] = {"pipelineStageId": STAGE_ID_P40}
-    if custom_fields:
-        updates["customFields"] = custom_fields
-
-    response = await writer.update_opportunity(opp_id, pipeline_id, updates)
-    return {"executed": True, "response": response, "applied": updates}
+    """Perform the P30->P40 move + stamp sys_last_good_* (P40) via the shared writer path."""
+    from handlers._writers import move_stage
+    return await move_stage(
+        opp_data, decision, last_good_stage_code="P40", last_good_pipeline_code="PL_PROD"
+    )
