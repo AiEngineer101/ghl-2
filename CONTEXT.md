@@ -284,3 +284,24 @@ Two follow-up gaps from the Sales review are now closed (test count **211**, all
 **Bug cross-check to action (R9 / webhook-contract §6.1):** Bill flags the **3 Production movers record the WRONG `sys_last_good_stage_code`** — `p20-p30` stamps P05, `p30-p40` stamps P10, `p40-p50` stamps P20 (should be the destination P30/P40/P50). Our **Sales** movers now stamp last-good correctly; **[ACTION] verify the Production movers don't carry this copy/paste bug** before relying on last-good for Production reverts.
 
 **Other documented design reqs (gaps vs our build, mostly fine):** webhook **signature** verification (R3 — we use a shared `X-Webhook-Secret`; acceptable interim), first-class **audit log** (R4 — `decisions` table covers it), **cold-start shadow backfill** (R5 — N/A while we GET the full opp per event), **kill switch** (R6 — `WRITES_ENABLED` serves it), **reconciliation poll** (§8.5 — not built; would double as missed-webhook recovery + drift re-check).
+
+---
+
+## 14. June 27 — `sys_last_good` root cause + REAL Sales cutover (GHL state verified via API)
+
+**Two big things resolved today; the Sales pipeline is now genuinely, cleanly cut over in GHL.**
+
+**A. `sys_last_good_stage_code` "stuck at S10" — root-caused and FIXED.** Investigated on test opp `nMwepCyMS4ryu4JvvYbE` (Sales). It climbed S10→S40 by our code yet last-good stayed at the S10 seed. Findings, in order:
+1. **Combined-PUT drop (real GHL behavior):** GHL silently drops `customFields` when sent in the SAME PUT as a `pipelineStageId`/`pipelineId` change. A *standalone* customFields PUT persists (proven by the gate stamps). → **Fixed:** `_writers.move_stage` and the S50→Production cross now issue the stage move first, then the `sys_last_good_*` audit fields as a SEPARATE customFields PUT. (Also unified all 5 Production movers on the shared `move_stage(last_good_stage_code=…)` path, fixing a `value`-vs-`field_value` bug in `move-prod-p10-p20` that had silently broken its last-good.)
+2. **The actual clobberer:** the live GHL **`WF | Init | Seed Last-Good Stage Snapshot`** (id `45a88355-…`, was Published) re-seeded `sys_last_good_stage_code=S10` on every event — its "already set → stop" guard is broken (references the malformed `sys_last_good_` typo field, R9/webhook-contract §9), so it never stops. Classic double-driver. → **Fixed by the client Drafting it.** Verified: `nMwep` now holds `S45` and it persists. (The field is writable + key resolves — neither was ever the problem.)
+
+**B. The Sales cutover wasn't actually done — now it is.** Via new read-only **`/debug/workflows`** endpoint (lists GHL workflow name+status+id from the API) we discovered that despite "no Sales workflows active" belief, the **entire Sales move set + the seed were still Published**. The client then Drafted them. **Verified current GHL state (2026-06-27):**
+- **DRAFT (handed to code):** all 6 Sales movers (`S10→S20`, `Inspection Complete→Scope Pending`, `S30→S40`, `Initial Funding Received`, `Handoff To Production`, `Sales→Production (Pipeline)`) + `Approvals Complete→Funding Pending` + `WF | Init | Seed Last-Good Stage Snapshot`.
+- **PUBLISHED (correctly kept):** `WF | Shadow | Opportunity Changed Bridge (Sales)` (the trigger — never draft) and **all gate workflows** (D&C gates + EV/TF input-stamping gates the code doesn't own: COC, CompletionPhotos, PayRetailDeposit, MeasurementReport, PermitApproved, SignedContract|D&C, EstimatePresented|D&C, etc.).
+- **Still PUBLISHED, optional to draft later:** the Sales stage-gate revert guards (`S30 Requires Claim Contacts`, `S40 Requires Scope/Estimate`, `S46 Requires Funding`, `S50 Handoff Requires Readiness`) — our Python enforcer already covers reverts (recomputes from proof), and now that last-good persists these GHL guards also revert correctly.
+
+➡️ **So: Sales = code owns moves + derived readiness + last-good + the 3 active gates; GHL still owns the EV/TF/D&C input-stamping gates (correct — code can't own D&C, hasn't built the other EV gates). This matches the Production hybrid (§ gate-ownership) and Bill's blueprint (94% native / D&C thin-workflows).**
+
+**Diagnostics added (read-only, kept):** `/debug/workflows`, `/debug/field-keys`, `/debug/opp-fields` (+ `ghl_client.get_workflows`). The temporary `/debug/test-write-lastgood` write-probe was removed. Tests: **211 passing.** Test opps used today: `YlKKKJ1WM6UaG5kIDh1h`, `rCZ51hZFEFO9EMaenXVZ`, `nMwepCyMS4ryu4JvvYbE` (all now in the opp-allowlist; Sales is also pipeline-allowlisted so the allowlist is redundant for Sales).
+
+**Still open:** rotate the `AiEngineer101` PAT (pasted in plaintext during the session). The R9 Production last-good "wrong code" item is effectively **resolved** — our movers stamp the correct destination via the shared path (they never had the P05/P10/P20 bug; `p20-p30` had simply not stamped at all, now fixed).
