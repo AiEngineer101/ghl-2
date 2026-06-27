@@ -54,12 +54,11 @@ from handlers.sales_stages import (
 )
 
 HANDLER_ID = "enforce-sales-stage-truth-invariant"
-# SHADOW until validated. Sales is pipeline-live, so flipping this to True makes the enforcer an
-# active rewriter on EVERY Sales opp's next event — and any live deal currently parked ahead of
-# its proof would be rewound immediately. Ship shadow-first: deploy, confirm on /decisions that
-# healthy deals get no_op and only genuinely-drifted ones show would_rewind (replay real Sales
-# opps via POST /webhook/replay — shadow = no writes), THEN flip to True and redeploy.
-SUPPORTS_WRITE = False  # shadow — logs would_rewind but does not touch GHL until cut over
+# ACTIVE (cut over 2026-06-27 after live shadow validation on opp CK0DVZ7Y0neREIUr5BS4:
+# healthy S10 -> no_op; dragged to S30 with no proof -> would_rewind to S10, reason naming the
+# missing inspection truths). Sales is pipeline-live, so this now actively rewinds ANY drifted
+# Sales opp on its next event. The writer allowlist still gates the PUT (Sales is allowlisted).
+SUPPORTS_WRITE = True  # active — performs Sales stage rewinds (pipeline-live)
 
 # Three-valued requirement status.
 OK = "ok"
