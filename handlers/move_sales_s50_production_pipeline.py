@@ -82,16 +82,25 @@ async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[st
     if not opp_id:
         return {"executed": False, "reason": "missing opp_id"}
 
-    updates: dict[str, Any] = {"pipelineId": PIPELINE_ID_PROD, "pipelineStageId": STAGE_ID_P05}
+    # 1) The cross (pipelineId + pipelineStageId — top-level fields, honored together).
+    cross_updates: dict[str, Any] = {
+        "pipelineId": PIPELINE_ID_PROD,
+        "pipelineStageId": STAGE_ID_P05,
+    }
+    response = await writer.update_opportunity(
+        opp_id, current_pipeline_id, cross_updates, handler_id=HANDLER_ID
+    )
+    applied: dict[str, Any] = dict(cross_updates)
 
-    # The opp is now a Production job — stamp the Production last-good codes (PL_PROD / P05),
-    # matching what the Production movers write, not the Sales codes.
+    # 2) Production last-good (PL_PROD / P05) as a SEPARATE customFields PUT — GHL drops
+    #    customFields when combined with a pipeline/stage change (see _writers.move_stage).
+    #    The opp is now a Production job; Production is pipeline-allowlisted so the write passes.
     from handlers._writers import _last_good_custom_fields
     cfs = await _last_good_custom_fields("P05", "PL_PROD")
     if cfs:
-        updates["customFields"] = cfs
+        await writer.update_opportunity(
+            opp_id, PIPELINE_ID_PROD, {"customFields": cfs}, handler_id=HANDLER_ID
+        )
+        applied["customFields"] = cfs
 
-    response = await writer.update_opportunity(
-        opp_id, current_pipeline_id, updates, handler_id=HANDLER_ID
-    )
-    return {"executed": True, "response": response, "applied": updates}
+    return {"executed": True, "response": response, "applied": applied}

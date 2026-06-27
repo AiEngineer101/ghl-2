@@ -81,9 +81,15 @@ async def move_stage(
 ) -> dict[str, Any]:
     """PUT pipelineStageId to the decision's target_value. Used by movers and the enforcer.
 
-    If last_good_stage_code is given, also stamp the sys_last_good_* audit fields in the same
-    PUT (so a successful stage write records the new known-good stage — closing the Sales
-    sys_last_good_stage_code gap, matching what the Production movers already do).
+    If last_good_stage_code is given, also stamp the sys_last_good_* audit fields — but in a
+    SEPARATE PUT, issued AFTER the move.
+
+    Why two writes: GHL silently drops `customFields` when they're combined with a
+    `pipelineStageId` change in the same PUT. Verified 2026-06-27 — an opp climbed
+    S10->S20->S30->S40 (three combined-PUT moves) yet sys_last_good_stage_code stayed at its
+    S10 seed the whole time. A standalone customFields PUT *does* persist (the exact path the
+    EV/TF gates use, proven when the inspection gate stamp landed). So: move first, audit second.
+    The move is the must-have; the audit write is best-effort and never blocks the move.
     """
     from ghl_writer import writer
 
@@ -98,13 +104,22 @@ async def move_stage(
     if not opp_id or not target_stage_id:
         return {"executed": False, "reason": "missing opp_id or target_value"}
 
-    updates: dict[str, Any] = {"pipelineStageId": target_stage_id}
+    handler_id = decision.get("handler_id")
+
+    # 1) The stage move (must-have, top-level field — this one IS honored in a move PUT).
+    move_updates: dict[str, Any] = {"pipelineStageId": target_stage_id}
+    response = await writer.update_opportunity(
+        opp_id, pipeline_id, move_updates, handler_id=handler_id
+    )
+    applied: dict[str, Any] = dict(move_updates)
+
+    # 2) The sys_last_good_* audit fields, as a SEPARATE customFields PUT (see docstring).
     if last_good_stage_code is not None:
         cfs = await _last_good_custom_fields(last_good_stage_code, last_good_pipeline_code)
         if cfs:
-            updates["customFields"] = cfs
+            await writer.update_opportunity(
+                opp_id, pipeline_id, {"customFields": cfs}, handler_id=handler_id
+            )
+            applied["customFields"] = cfs
 
-    response = await writer.update_opportunity(
-        opp_id, pipeline_id, updates, handler_id=decision.get("handler_id")
-    )
-    return {"executed": True, "response": response, "applied": updates}
+    return {"executed": True, "response": response, "applied": applied}
