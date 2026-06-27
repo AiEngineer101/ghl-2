@@ -123,6 +123,35 @@ async def debug_field_keys(contains: str = "") -> dict[str, Any]:
     return {"total": len(id_to_key), "matched": len(keys), "keys": keys}
 
 
+@app.get("/debug/opp-fields/{opp_id}")
+async def debug_opp_fields(opp_id: str, contains: str = "") -> dict[str, Any]:
+    """Read-only: dump an opp's custom fields (key -> value) as our code sees them.
+
+    Confirms what GHL actually persisted (e.g. did sys_last_good_stage_code take our write?).
+    Optional ?contains= filters keys by substring.
+    """
+    from handlers._common import custom_field_map
+
+    full = await ghl.get_opportunity(opp_id)
+    opp = full.get("opportunity", full)
+    try:
+        id_to_key = await ghl.get_opportunity_field_key_map()
+        for cf in opp.get("customFields", []) or []:
+            if isinstance(cf, dict) and not cf.get("fieldKey"):
+                cf["fieldKey"] = id_to_key.get(cf.get("id"), "")
+    except Exception:
+        pass
+    fields = custom_field_map(opp)
+    if contains:
+        fields = {k: v for k, v in fields.items() if contains.lower() in k.lower()}
+    return {
+        "opp_id": opp_id,
+        "pipelineId": opp.get("pipelineId"),
+        "pipelineStageId": opp.get("pipelineStageId"),
+        "fields": fields,
+    }
+
+
 @app.get("/healthz")
 async def healthz() -> dict[str, Any]:
     return {
