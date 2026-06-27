@@ -142,18 +142,16 @@ async def debug_test_write_lastgood(opp_id: str, value: str = "DBG-TEST") -> dic
                 cf["fieldKey"] = id_to_key.get(cf.get("id"), "")
         return opp.get("pipelineId"), custom_field_map(opp).get("sys_last_good_stage_code")
 
+    from handlers._writers import _last_good_custom_fields
+
     pipeline_id, before = await _read()
-    id_to_key = await ghl.get_opportunity_field_key_map()
-    fid = {v: k for k, v in id_to_key.items()}.get("sys_last_good_stage_code")
-    wrote_resp_keys = None
-    if fid:
-        resp = await writer.update_opportunity(
-            opp_id, pipeline_id, {"customFields": [{"id": fid, "field_value": value}]}
-        )
-        wrote_resp_keys = sorted(resp.keys()) if isinstance(resp, dict) else str(type(resp))
+    # EXACT replica of move_stage's second PUT: both sys_last_good_* fields together.
+    cfs = await _last_good_custom_fields(value, "PL_SALES")
+    resp = await writer.update_opportunity(opp_id, pipeline_id, {"customFields": cfs})
+    wrote_resp_keys = sorted(resp.keys()) if isinstance(resp, dict) else str(type(resp))
     _, after = await _read()
     return {
-        "field_id": fid,
+        "sent_customFields": cfs,
         "before": before,
         "wrote": value,
         "after": after,
