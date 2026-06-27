@@ -22,6 +22,7 @@ from handlers import (
     derived_closeout_cash_reconciled,
     derived_closeout_ready,
     derived_production_readiness,
+    enforce_sales_stage_truth_invariant,
     enforce_stage_truth_invariant,
     gate_front_home_photo,
     gate_inspection_complete,
@@ -64,7 +65,8 @@ HANDLERS = [
     move_prod_p30_p40_closeout_pending,
     move_prod_p40_p50_closeout_complete,
     enforce_stage_truth_invariant,
-    # --- Sales pipeline (SHADOW / watch-only — SUPPORTS_WRITE=False until a test harness exists) ---
+    # --- Sales pipeline (ACTIVE — all handlers SUPPORTS_WRITE=True; Sales is pipeline-live via
+    #     the writer's pipeline-allowlist, so writes apply to EVERY Sales opp) ---
     gate_front_home_photo,
     gate_inspection_complete,
     gate_insurance_scope,
@@ -76,6 +78,9 @@ HANDLERS = [
     move_sales_s45_s46_initial_funding,
     move_sales_s46_s50_handoff_to_production,
     move_sales_s50_production_pipeline,
+    # Enforcer runs LAST (post-mover) so it only rewinds genuine Sales drift, never a
+    # legitimate forward move (which it sees as the still-pre-move snapshot stage).
+    enforce_sales_stage_truth_invariant,
 ]
 
 

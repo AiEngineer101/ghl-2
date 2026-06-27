@@ -2,7 +2,7 @@
 
 > **Purpose of this file:** the single place that captures *what we are building, why, where things live, the current state, and what's next* — so context is never lost between sessions or people. Update it whenever something material changes.
 >
-> **Last updated:** 2026-06-26
+> **Last updated:** 2026-06-27
 
 ---
 
@@ -59,7 +59,7 @@ GHL event (Opportunity Changed)  ──webhook──▶  POST /webhook/ghl
 
 - **Shadow-state diff:** GHL only says "something changed," not *what*. The service compares against stored state to find the change and stay idempotent (no echo loops).
 - **Shadow vs active:** each handler has `SUPPORTS_WRITE`. `False` = watch-only (logs "would do X" but doesn't touch GHL). `True` = active (actually writes). New handlers are added shadow-first, validated on the dashboard, then "cut over" to active **at the same time as** the matching GHL workflow is set to Draft (so they don't double-drive).
-- **Write safety (defense in depth):** writes only happen if `WRITES_ENABLED=true` AND (the opp's pipeline is in the pipeline-allowlist — currently **Production only**, `88V9uYY6visCrtI9V0NR` — **OR** the specific opp ID is in the **opp-allowlist** `write_allowed_opp_ids`). The opp-allowlist (pure decision in `write_guard.is_write_allowed`, enforced in `ghl_writer`) lets a **single Sales test opp** (`U970gIvE6Q31JKTCGVNw`) get active writes while every other live Sales deal stays blocked. Shown in `/healthz` as `write_allowed_opps`. **TEMP — tighten/remove when Sales testing ends.**
+- **Write safety (defense in depth):** writes only happen if `WRITES_ENABLED=true` AND any one of: (a) the opp's pipeline is in the pipeline-allowlist — now **Production `88V9uYY6visCrtI9V0NR` AND Sales `9KlQhUS34GzTN9q34WKF`** (Sales cut over pipeline-wide 2026-06-27); (b) the specific opp ID is in the **opp-allowlist** `write_allowed_opp_ids`; or (c) the writing handler is in the per-handler allowlist `write_live_handlers`. Decision is pure in `write_guard.is_write_allowed`, enforced in `ghl_writer`. Because Sales is now pipeline-allowlisted, **every Sales opp is writable** — the opp-allowlist is redundant for Sales (kept, harmless). Shown in `/healthz` as `write_allowed_pipelines` / `write_allowed_opps` / `write_live_handlers`.
 - **Decision types:** `would_move`, `would_stamp`, `would_rewind`, `skip_idempotent`, `skip_condition_unmet`, `skip_blocked`, `no_op`.
 
 **Useful read-only endpoints (open GET, no secret):** `/healthz`, `/events?limit=N`, `/events/{id}`, `/decisions?limit=N`, `/` (dashboard).
@@ -248,10 +248,39 @@ When `sys_closeout_ready` flips to Yes, `move-prod-p40-p50` moves the job to Clo
 **FULL PIPELINE VALIDATED LIVE, AUTOMATICALLY 2026-06-26** on Retail test opp **`rCZ51hZFEFO9EMaenXVZ`** (now in the write-allowlist alongside `YlKKKJ1WM6UaG5kIDh1h`): rode **S10→…→S50→Production/P05, every move executed by our code, triggered by GHL webhooks** (not manual replay), each confirmed via `executed=True` from a `source=webhook` event. The inspection-complete **gate** was also proven Python-owned (Drafted the GHL InspectionComplete gate → our code stamped `dt_inspection_completed`, `executed=True`, then `skip_idempotent`). Only manual nudge was setting `sys_production_readiness=Yes` (now superseded by the new derived handler).
 - Note: GHL Sales **move** workflows are still Published, so some moves race — our code won S30→S40/S40→S45/S45→S46/S46→S50/S50→P05 here, but earlier (before drafting) GHL won S40→S45 / S40→S46-skip. There is **no standalone GHL "S10→S20" or "S45→S46" workflow** — those moves are embedded in other automations / the de-branched funding workflow.
 
-**Migration status — Sales is feature-complete in code; remaining is the coordinated CUTOVER:**
-1. **Pipeline-wide writes NOT yet on** — still **opp-scoped** (allowlist: `U970…`, `HCkgP9…`, `YlKK…`, `rCZ51…`). The Sales→pipeline-allowlist change was staged then reverted to keep tests opp-scoped; flip `WRITE_ALLOWED_PIPELINE_IDS += 9KlQhUS34GzTN9q34WKF` (or list each handler in `WRITE_LIVE_HANDLERS`) when ready for ALL real deals.
-2. **Draft the live GHL Sales MOVE workflows** (+ the production-readiness derived workflow) so they stop racing our code — only AFTER pipeline-wide writes are on, else real deals strand.
+**Migration status — Sales is feature-complete in code AND now pipeline-live; remaining is the GHL-side workflow drafting:**
+1. **Pipeline-wide writes ARE ON (cut over 2026-06-27, commit `2c0d983`).** `write_allowed_pipeline_ids` now includes the Sales pipeline `9KlQhUS34GzTN9q34WKF` ([config.py](config.py)), so the writer PUTs for **EVERY Sales opp**, not just the test opps — every Sales gate, mover, and `derived-production-readiness` is live for all real deals. The opp-allowlist (`U970…`, `HCkgP9…`, `YlKK…`, `rCZ51…`) is now **redundant for Sales** but kept (harmless).
+2. **⚠️ ACTION REQUIRED — Draft the live GHL Sales MOVE workflows** (+ the production-readiness derived workflow) so they stop racing our code. Now that pipeline-wide writes are on (step 1), this is the **immediate next step**: until it's done, the GHL workflows and the Python movers both drive the same real deals (double-driving). Confirm the GHL-side Draft state before trusting Sales automation on live deals.
 3. **KEEP PUBLISHED (Python doesn't own these):** the **D&C `EstimatePresented` gate** (stamps `dt_estimate_presented` from a Documents&Contracts "Sent" event our service never receives) and any gate whose Python side is still shadow. The 3 Sales gates above ARE now active, so their GHL gates can be Drafted after per-gate validation (only InspectionComplete validated so far; front-photo + insurance-scope still rely on GHL).
 4. **Measurement report is context-only** (`ev_measurement_report`/`dt_measurement_report_received`) — NOT a stage-exit gate; it only feeds production-readiness. (Caused confusion: adding it does not move S30→S40; `dt_estimate_presented` does.)
 
-**KNOWN GAP (still open):** Sales movers don't stamp `sys_last_good_stage_code`. **Diagrams:** `docs/sales-pipeline-diagram.md` (Mermaid).
+**Diagrams:** `docs/sales-pipeline-diagram.md` (Mermaid).
+
+## 13. June 27 — Sales drift enforcer + last-good stamping (gaps closed)
+
+Two follow-up gaps from the Sales review are now closed (test count **211**, all passing):
+
+- **Sales drift enforcer BUILT** (`enforce_sales_stage_truth_invariant.py`, registered LAST among Sales handlers). The Sales analogue of `enforce-stage-truth-invariant` (which is Production-only): on every Sales event it recomputes the highest stage whose entry-proof holds and **rewinds** an opp that sits ahead of its evidence (manual drag, or a `dt_*`/`seg_*` cleared after the fact). Job-type-conditional at S30/S40 with three-valued logic — `ok` / `fail` / **`indeterminate`**: an unknown `seg_job_type` is NOT rewound (a missing branch selector must not bounce a deal), it's left as-is until the type is set. S50 recomputes production readiness from proof fields (shared `production_readiness()`), not the stored flag — same robustness pattern as the P50 closeout guardrail. Because `evaluate()` reads the pre-move snapshot stage, it never fights a legitimate forward move (sees current stage ≤ highest-satisfied → no_op). **SHADOW first** (`SUPPORTS_WRITE=False`) — Sales is pipeline-live, so it ships watch-only to validate on `/decisions` (healthy deals → `no_op`, only drifted → `would_rewind`) before being cut over to active. Flip to `True` + redeploy after validation.
+- **`sys_last_good_stage_code` gap CLOSED.** All Sales movers (and the new enforcer) now stamp `sys_last_good_pipeline_code` (`PL_SALES`) + `sys_last_good_stage_code` (the S-code of the stage they set) in the same PUT, matching the Production movers. Stage identity is centralized in a new `handlers/sales_stages.py` (single source of truth: stage IDs, code map, ladder order) so the movers and enforcer can't drift apart. The S50→Production cross stamps the Production codes (`PL_PROD` / `P05`). Shared write path: `_writers.move_stage(..., last_good_stage_code=, last_good_pipeline_code=)`.
+
+---
+
+## 13. June 27 sync — Bill's webhook-first engine blueprint (snapshot `smartroofing_repo_2026-06-27`)
+
+**No new CRs** (still CR-0027, 2026-06-23) — doctrine unchanged. The new material vs our prior CONTEXT is Bill's **`engine/` design folder + `workflow/reference/webhook-event-contract-DRAFT.md`** (authored 06-09/06-10) — his documented blueprint for the webhook-first, logic-in-code engine. It **validates the architecture we built** and **resolves the gate-ownership question**. Local copy (gitignored): **`_bill_docs/`** (`engine/`, `01-gates/` full gate inventory, `reference/` webhook-contract + R9-defects + pipelines-and-stages + field-registry).
+
+**Our build matches Bill's documented design** — webhook-first, GHL as headless data+UI, shadow-state diff, read-back-before-write, idempotent echo-loop kill. **ADR-0001** (`engine/decisions/0001`): *no n8n, everything in code, Python (FastAPI) + Postgres, Docker, Azure Container Apps (prod) / VM (dev)* — agreed Dhruv+Bill 06-10. ⚠️ We run **Render + SQLite (interim)**; the documented target is **Azure + Postgres**. Scaling rule: shard by opportunity key (per-opp ordering); webhook ingestion never scale-to-zero.
+
+**DEFINITIVE gate-ownership answer (supersedes the earlier "gates belong in GHL" framing — that was wrong):**
+- **125/129 specs (60/64 gates) are Native** → fire on GHL marketplace webhooks (`OpportunityUpdate/StageUpdate/StatusUpdate/MonetaryValueUpdate`, `Contact*`, `AppointmentCreate`) → **owned by code**.
+- **Only 4 `dc-to-dt` gates** (estimate-presented, signed-contract, insurance-contract, hybrid-upgrade-accepted) have **NO native webhook** → each needs **one thin GHL workflow** (D&C trigger → Webhook action). Plus `notify-estimate-viewed` (5th thin) + 1 scheduled (`override-owner-manual-move-window`, 10-min).
+- So the doctrine target = **everything in code EXCEPT ~5 unavoidable thin GHL forwarders** (D&C has no native event). The 6 gates we built are all Native — correct to own in code.
+- **Each D&C gate has a Native `ev-to-dt` fallback-upload twin** (`gate-signed-contract-fallback-upload`, `gate-estimate-presented-fallback-archive`, etc.) — the "doc uploaded" path **is** code-ownable; only "doc Sent/Signed via D&C" needs the thin workflow.
+
+**Migration plan (§12) = exactly our playbook:** shadow → canary (drift detectors) → strangler per-slice (derived → leads → sales → ev-gates → prod → payment/closeout last → D&C thin-workflows) → full. **"One owner per spec — GHL or engine, never both."** Our per-handler cutover + draft-the-matching-GHL-workflow is precisely this.
+
+**Spec↔code model — divergence to note (R2/§13):** Bill's preferred model is **declarative specs compiled by a generic interpreter (~80%)** + hand-written handlers for the complex ~20%, joined by `spec_id` with CI 1:1 orphan checks (PoC in `engine/proof/` for `gate-signed-contract-dc`). We are **100% hand-written handlers** (spec-anchored docstrings = the 20% pattern). Not wrong; revisit if we adopt the interpreter model.
+
+**Bug cross-check to action (R9 / webhook-contract §6.1):** Bill flags the **3 Production movers record the WRONG `sys_last_good_stage_code`** — `p20-p30` stamps P05, `p30-p40` stamps P10, `p40-p50` stamps P20 (should be the destination P30/P40/P50). Our **Sales** movers now stamp last-good correctly; **[ACTION] verify the Production movers don't carry this copy/paste bug** before relying on last-good for Production reverts.
+
+**Other documented design reqs (gaps vs our build, mostly fine):** webhook **signature** verification (R3 — we use a shared `X-Webhook-Secret`; acceptable interim), first-class **audit log** (R4 — `decisions` table covers it), **cold-start shadow backfill** (R5 — N/A while we GET the full opp per event), **kill switch** (R6 — `WRITES_ENABLED` serves it), **reconciliation poll** (§8.5 — not built; would double as missed-webhook recovery + drift re-check).

@@ -30,9 +30,9 @@ crosses into Production, the Production-side Block-Production-Entry guard re-ver
 
 Idempotent: only emits a write when the computed value differs from the stored value.
 
-ACTIVE — opp-scoped (writer enforces the per-opp/pipeline allowlist). When cut over for real
-deals, the live GHL production-readiness workflow must be set to Draft so they don't
-double-drive.
+ACTIVE — pipeline-live for Sales (the Sales pipeline is in the writer's pipeline-allowlist, so
+the writer PUTs for EVERY Sales opp). The live GHL production-readiness workflow must be set to
+Draft so they don't double-drive.
 """
 from __future__ import annotations
 

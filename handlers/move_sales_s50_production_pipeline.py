@@ -15,7 +15,9 @@ emit would_move while readiness holds.
 After the cross, the opp is a Production-pipeline job and is governed by the Production
 handlers (and the Production-side Block Production Entry guard re-verifies readiness).
 
-ACTIVE — opp-scoped (writer enforces the per-opp allowlist).
+ACTIVE — pipeline-live for Sales (Sales is in the writer's pipeline-allowlist, so the writer
+PUTs for EVERY Sales opp; the allowlist check uses the opp's CURRENT pipeline = Sales). The
+matching live GHL Sales workflow must be Drafted to avoid double-driving.
 """
 from __future__ import annotations
 
@@ -24,7 +26,7 @@ from typing import Any
 from handlers._common import custom_field_map, unwrap_opportunity, yes
 
 HANDLER_ID = "move-sales-s50-production-pipeline"
-SUPPORTS_WRITE = True  # active, opp-scoped via writer guard
+SUPPORTS_WRITE = True  # active; pipeline-live for Sales via writer allowlist
 
 PIPELINE_ID_SALES = "9KlQhUS34GzTN9q34WKF"
 PIPELINE_ID_PROD = "88V9uYY6visCrtI9V0NR"
@@ -80,7 +82,15 @@ async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[st
     if not opp_id:
         return {"executed": False, "reason": "missing opp_id"}
 
-    updates = {"pipelineId": PIPELINE_ID_PROD, "pipelineStageId": STAGE_ID_P05}
+    updates: dict[str, Any] = {"pipelineId": PIPELINE_ID_PROD, "pipelineStageId": STAGE_ID_P05}
+
+    # The opp is now a Production job — stamp the Production last-good codes (PL_PROD / P05),
+    # matching what the Production movers write, not the Sales codes.
+    from handlers._writers import _last_good_custom_fields
+    cfs = await _last_good_custom_fields("P05", "PL_PROD")
+    if cfs:
+        updates["customFields"] = cfs
+
     response = await writer.update_opportunity(
         opp_id, current_pipeline_id, updates, handler_id=HANDLER_ID
     )

@@ -15,9 +15,10 @@ NOTE: dt_signed_contract_received is stamped by the universal SignedContract gat
 event + fallback upload), not by us — we READ it. UI label is "Contract Received Date"
 (confirm the key resolves on first live validation).
 
-ACTIVE/SHADOW: starts shadow; cut over to active (opp-scoped) after live validation, same as
-the earlier Sales movers. The S45 bounce-back guard is Drafted/possibly-deprecated per spec —
-intentionally NOT built.
+ACTIVE — pipeline-live for Sales (the Sales pipeline is in the writer's pipeline-allowlist, so
+the writer PUTs for EVERY Sales opp). The matching live GHL Sales workflow must be Drafted so it
+doesn't double-drive this move. The S45 bounce-back guard is Drafted/possibly-deprecated per
+spec — intentionally NOT built.
 """
 from __future__ import annotations
 
@@ -26,7 +27,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity
 
 HANDLER_ID = "move-sales-s40-s45-funding-pending"
-SUPPORTS_WRITE = True  # active, opp-scoped via writer guard
+SUPPORTS_WRITE = True  # active; pipeline-live for Sales via writer allowlist
 
 PIPELINE_ID_SALES = "9KlQhUS34GzTN9q34WKF"
 STAGE_ID_S40 = "d270f2b4-d14e-4bff-813f-ed02e9e21d10"  # Job Pending Approval
@@ -110,6 +111,12 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
-    """Perform the S40->S45/S46 move via the GHL writer. Inert while SUPPORTS_WRITE=False."""
+    """Perform the S40->S45/S46 move via the GHL writer (write gated by the writer allowlist)."""
     from handlers._writers import move_stage
-    return await move_stage(opp_data, decision)
+    from handlers.sales_stages import LAST_GOOD_PIPELINE_CODE, stage_code_for
+    # Target is S45 or S46 depending on whether funding was already in — derive the code.
+    code = stage_code_for(decision.get("target_value"))
+    return await move_stage(
+        opp_data, decision,
+        last_good_stage_code=code, last_good_pipeline_code=LAST_GOOD_PIPELINE_CODE,
+    )

@@ -11,7 +11,9 @@ sys_production_readiness is a DERIVED rollup (all job-type prerequisites) — co
 live GHL derived workflow today; we READ it. (Building the Python computer for it is a
 separate, larger follow-up.)
 
-ACTIVE — opp-scoped (writer enforces the per-opp allowlist).
+ACTIVE — pipeline-live for Sales (Sales is in the writer's pipeline-allowlist, so the writer
+PUTs for EVERY Sales opp). The matching live GHL Sales workflow must be Drafted to avoid
+double-driving.
 """
 from __future__ import annotations
 
@@ -20,7 +22,7 @@ from typing import Any
 from handlers._common import custom_field_map, unwrap_opportunity, yes
 
 HANDLER_ID = "move-sales-s46-s50-handoff-to-production"
-SUPPORTS_WRITE = True  # active, opp-scoped via writer guard
+SUPPORTS_WRITE = True  # active; pipeline-live for Sales via writer allowlist
 
 PIPELINE_ID_SALES = "9KlQhUS34GzTN9q34WKF"
 STAGE_ID_S46 = "4ced8cf3-6088-4a6b-92f6-73a6f56a030f"  # Initial Funding Received
@@ -65,4 +67,8 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
 async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
     """Perform the S46->S50 move via the GHL writer. Inert unless writer allows the opp."""
     from handlers._writers import move_stage
-    return await move_stage(opp_data, decision)
+    from handlers.sales_stages import LAST_GOOD_PIPELINE_CODE
+    return await move_stage(
+        opp_data, decision,
+        last_good_stage_code="S50", last_good_pipeline_code=LAST_GOOD_PIPELINE_CODE,
+    )

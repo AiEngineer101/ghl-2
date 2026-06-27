@@ -18,10 +18,10 @@ Design note: the live GHL build splits this into a Drafted timed mover (Retail d
 active Insurance/Hybrid scope mover. In the Code OS we collapse both into one job-type-conditional
 mover keyed off durable truth — simpler and it cannot auto-advance Insurance/Hybrid past the hold.
 
-ACTIVE — opp-scoped, like move-sales-s10-s20. SUPPORTS_WRITE=True means execute() runs, but
-the writer (write_guard.is_write_allowed) only PUTs for opps in the opp-allowlist
-(settings.write_allowed_opp_ids). Sales is NOT pipeline-allowlisted, so this mover only moves
-the scoped test opp(s); every other live Sales deal is blocked at the writer.
+ACTIVE — pipeline-live for Sales. SUPPORTS_WRITE=True and the Sales pipeline is now in the
+writer's pipeline-allowlist (settings.write_allowed_pipeline_ids), so the writer PUTs for EVERY
+Sales opp — not just the test opps. The matching live GHL Sales workflow must be Drafted so it
+doesn't double-drive this move.
 """
 from __future__ import annotations
 
@@ -136,6 +136,10 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
-    """Perform the S20->S30 move via the GHL writer. Inert while SUPPORTS_WRITE=False."""
+    """Perform the S20->S30 move via the GHL writer (write gated by the writer allowlist)."""
     from handlers._writers import move_stage
-    return await move_stage(opp_data, decision)
+    from handlers.sales_stages import LAST_GOOD_PIPELINE_CODE
+    return await move_stage(
+        opp_data, decision,
+        last_good_stage_code="S30", last_good_pipeline_code=LAST_GOOD_PIPELINE_CODE,
+    )

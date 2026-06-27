@@ -16,11 +16,10 @@ SPEC DISCREPANCY (resolved in favor of Layer-1, the newer authority):
   Layer-1. (Same one-event-lag model as the Production movers: the gate stamps the DT,
   the next Opportunity Changed event fires the move.)
 
-ACTIVE — but writes are gated per-opp. SUPPORTS_WRITE=True means execute() runs, but the
-writer (write_guard.is_write_allowed) only actually PUTs when the opp is in the opp-allowlist
-(settings.write_allowed_opp_ids) OR its pipeline is allowlisted. Sales is NOT pipeline-
-allowlisted, so this mover only moves the scoped test opp(s); every other live Sales deal is
-blocked at the writer. This is the first Sales write path — keep the opp-allowlist tight.
+ACTIVE — pipeline-live for Sales. SUPPORTS_WRITE=True and the Sales pipeline is now in the
+writer's pipeline-allowlist (settings.write_allowed_pipeline_ids), so the writer PUTs for EVERY
+Sales opp — not just the test opps. (The opp-allowlist still exists but is redundant for Sales.)
+The matching live GHL Sales workflow must be Drafted so it doesn't double-drive this move.
 """
 from __future__ import annotations
 
@@ -106,6 +105,10 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
-    """Perform the S10->S20 move via the GHL writer. Inert while SUPPORTS_WRITE=False."""
+    """Perform the S10->S20 move via the GHL writer (write gated by the writer allowlist)."""
     from handlers._writers import move_stage
-    return await move_stage(opp_data, decision)
+    from handlers.sales_stages import LAST_GOOD_PIPELINE_CODE
+    return await move_stage(
+        opp_data, decision,
+        last_good_stage_code="S20", last_good_pipeline_code=LAST_GOOD_PIPELINE_CODE,
+    )

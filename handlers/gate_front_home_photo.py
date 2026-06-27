@@ -7,11 +7,11 @@ Spec source: workflow/01-gates/ev-to-dt/gate-front-home-photo.md (CR-0001)
 - DO: if dt_front_of_home_inspection_photo_received is empty -> set it = Today
 - Idempotent: DT_received is stamped once (write-once).
 
-ACTIVE — opp-scoped, like the Sales movers. SUPPORTS_WRITE=True means execute() runs, but
-the writer (write_guard.is_write_allowed) only PUTs when the opp is in the opp-allowlist OR
-its pipeline is allowlisted — so Python stamps the DT itself instead of relying on the live
-GHL gate workflow. The GHL gate is idempotent against this (both write the same write-once
-date), so they can run side by side until the GHL gate is Drafted.
+ACTIVE — pipeline-live for Sales. SUPPORTS_WRITE=True and the Sales pipeline is in the writer's
+pipeline-allowlist (settings.write_allowed_pipeline_ids), so the writer PUTs for EVERY Sales opp
+— Python stamps the DT itself instead of relying on the live GHL gate workflow. The GHL gate is
+idempotent against this (both write the same write-once date), so they can run side by side
+until the GHL gate is Drafted.
 """
 from __future__ import annotations
 
@@ -84,8 +84,7 @@ def _to_str(v: Any) -> str | None:
 async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
     """Stamp dt_front_of_home_inspection_photo_received via the GHL writer.
 
-    Wired but inert while SUPPORTS_WRITE=False (app.py only calls execute() for
-    write-enabled handlers).
+    Active (SUPPORTS_WRITE=True); the actual PUT is gated by the writer allowlist.
     """
     from handlers._writers import stamp_custom_field
     return await stamp_custom_field(opp_data, decision, OUTPUT_FIELD)

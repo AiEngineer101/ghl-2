@@ -3,9 +3,11 @@
 Two-layer safety (see write_guard.is_write_allowed):
   1. settings.writes_enabled must be True (master switch)
   2. EITHER the opp's current pipeline_id is in the pipeline allowlist
-     (settings.write_allowed_pipeline_id_set — Production only by default),
+     (settings.write_allowed_pipeline_id_set — Production AND Sales are both live),
      OR the specific opp_id is in the opp allowlist
-     (settings.write_allowed_opp_id_set — scoped test opps).
+     (settings.write_allowed_opp_id_set — scoped test opps),
+     OR the writing handler is in the per-handler allowlist
+     (settings.write_live_handler_set).
 
 If the decision is "not allowed" the writer raises WriteNotAllowed and NO request is made.
 """

@@ -6,7 +6,9 @@ Job-type-AGNOSTIC (de-branched 2026-06-08): move Approved — Funding Pending (S
 Initial Funding Received (S46) when initial funding lands — retail deposit OR insurance
 deductible. A job advances on its FIRST funding event; hybrid is NOT required to have both.
 
-ACTIVE — opp-scoped (writer enforces the per-opp allowlist; only the test opp moves).
+ACTIVE — pipeline-live for Sales (Sales is in the writer's pipeline-allowlist, so the writer
+PUTs for EVERY Sales opp). The matching live GHL Sales workflow must be Drafted to avoid
+double-driving.
 """
 from __future__ import annotations
 
@@ -15,7 +17,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity
 
 HANDLER_ID = "move-sales-s45-s46-initial-funding"
-SUPPORTS_WRITE = True  # active, opp-scoped via writer guard
+SUPPORTS_WRITE = True  # active; pipeline-live for Sales via writer allowlist
 
 PIPELINE_ID_SALES = "9KlQhUS34GzTN9q34WKF"
 STAGE_ID_S45 = "7d1d1248-8de5-43f0-8876-c9bc23b3b51e"  # Approved — Funding Pending
@@ -67,4 +69,8 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
 async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
     """Perform the S45->S46 move via the GHL writer. Inert unless writer allows the opp."""
     from handlers._writers import move_stage
-    return await move_stage(opp_data, decision)
+    from handlers.sales_stages import LAST_GOOD_PIPELINE_CODE
+    return await move_stage(
+        opp_data, decision,
+        last_good_stage_code="S46", last_good_pipeline_code=LAST_GOOD_PIPELINE_CODE,
+    )

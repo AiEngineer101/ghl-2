@@ -9,8 +9,8 @@ Spec source: workflow/01-gates/ev-to-dt/gate-insurance-scope.md
 Not job-type-gated: the gate just stamps when the scope doc is present (Retail jobs
 never have one). Job-type branching happens at the S20->S30 mover.
 
-ACTIVE — opp-scoped (writer enforces the per-opp/pipeline allowlist). Python stamps the DT
-itself rather than relying on the live GHL gate; both are idempotent on the write-once date.
+ACTIVE — pipeline-live for Sales (Sales is in the writer's pipeline-allowlist). Python stamps the
+DT itself rather than relying on the live GHL gate; both are idempotent on the write-once date.
 """
 from __future__ import annotations
 
@@ -80,6 +80,6 @@ def _to_str(v: Any) -> str | None:
 
 
 async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
-    """Stamp dt_insurance_scope_received via the GHL writer. Inert while SUPPORTS_WRITE=False."""
+    """Stamp dt_insurance_scope_received via the GHL writer (write gated by the writer allowlist)."""
     from handlers._writers import stamp_custom_field
     return await stamp_custom_field(opp_data, decision, OUTPUT_FIELD)

@@ -17,9 +17,10 @@ DESIGN NOTE — no estimate-presented gate handler here:
   D&C gate) and gate the move on it. dt_insurance_scope_received comes from our own
   gate-insurance-scope (slice 2) or the live GHL gate.
 
-ACTIVE — opp-scoped (cut over 06-24 after live shadow validation). SUPPORTS_WRITE=True;
-the writer only PUTs for opp-allowlisted test opps (Sales is not pipeline-allowlisted), so
-this mover only moves the scoped test opp(s); every other live Sales deal is blocked.
+ACTIVE — pipeline-live for Sales (cut over to pipeline-wide writes after live validation).
+SUPPORTS_WRITE=True and the Sales pipeline is in the writer's pipeline-allowlist
+(settings.write_allowed_pipeline_ids), so the writer PUTs for EVERY Sales opp. The matching
+live GHL Sales workflow must be Drafted so it doesn't double-drive this move.
 """
 from __future__ import annotations
 
@@ -130,6 +131,10 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
-    """Perform the S30->S40 move via the GHL writer. Inert while SUPPORTS_WRITE=False."""
+    """Perform the S30->S40 move via the GHL writer (write gated by the writer allowlist)."""
     from handlers._writers import move_stage
-    return await move_stage(opp_data, decision)
+    from handlers.sales_stages import LAST_GOOD_PIPELINE_CODE
+    return await move_stage(
+        opp_data, decision,
+        last_good_stage_code="S40", last_good_pipeline_code=LAST_GOOD_PIPELINE_CODE,
+    )

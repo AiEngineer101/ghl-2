@@ -37,7 +37,7 @@ flowchart TD
 flowchart TD
     D["A mover decides: would_move"] --> Q1{"writes_enabled?"}
     Q1 -->|No| BLOCK["BLOCKED<br/>WriteNotAllowed"]
-    Q1 -->|Yes| Q2{"opp's pipeline in<br/>pipeline-allowlist?<br/>(Production only)"}
+    Q1 -->|Yes| Q2{"opp's pipeline in<br/>pipeline-allowlist?<br/>(Production + Sales)"}
     Q2 -->|Yes| WRITE["WRITE to GHL ✓"]
     Q2 -->|No| Q3{"opp_id in<br/>opp-allowlist?<br/>(test opps only)"}
     Q3 -->|Yes| WRITE
@@ -49,7 +49,7 @@ flowchart TD
     class BLOCK no;
 ```
 
-*Result: a Production opp writes via the pipeline rule; a Sales **test** opp writes via the opp rule; every other live Sales deal only gets a logged "would move…" and is never PUT.*
+*Result (since the 2026-06-27 cutover): both Production and Sales opps write via the pipeline rule, so **every** Sales deal is PUT — not just test opps. The opp-allowlist now only matters for opps in pipelines that aren't allowlisted (none, currently). The matching live GHL Sales workflows must be Drafted to avoid double-driving.*
 
 ---
 
