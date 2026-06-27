@@ -123,6 +123,17 @@ async def debug_field_keys(contains: str = "") -> dict[str, Any]:
     return {"total": len(id_to_key), "matched": len(keys), "keys": keys}
 
 
+@app.get("/debug/workflows")
+async def debug_workflows(contains: str = "") -> dict[str, Any]:
+    """Read-only: list GHL workflows (name + status). Optional ?contains= filter."""
+    wfs = await ghl.get_workflows()
+    rows = [{"name": w.get("name"), "status": w.get("status"), "id": w.get("id")} for w in wfs]
+    if contains:
+        rows = [r for r in rows if contains.lower() in str(r["name"]).lower()]
+    rows.sort(key=lambda r: str(r["name"]))
+    return {"total": len(wfs), "matched": len(rows), "workflows": rows}
+
+
 @app.get("/debug/test-write-lastgood/{opp_id}")
 async def debug_test_write_lastgood(opp_id: str, value: str = "DBG-TEST") -> dict[str, Any]:
     """DIAGNOSTIC (temporary): write `value` to sys_last_good_stage_code, then read it back.
