@@ -96,6 +96,15 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
 
 
 async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
-    """PUT pipelineStageId=P30 via the GHL writer."""
+    """PUT pipelineStageId=P30 and stamp sys_last_good_* (destination) via the GHL writer.
+
+    Records last-good = the DESTINATION stage (P30), matching the other Production movers
+    (p05-p10→P10, p10-p20→P20, p30-p40→P40, p40-p50→P50). Previously this mover stamped no
+    last-good at all, leaving sys_last_good_stage_code stale at P20 after a P20→P30 move —
+    which the GHL stage-gate/override revert logic reads as the bounce-back target.
+    (Related: R9 last-good spec defect, webhook-event-contract §6.1.)
+    """
     from handlers._writers import move_stage
-    return await move_stage(opp_data, decision)
+    return await move_stage(
+        opp_data, decision, last_good_stage_code="P30", last_good_pipeline_code="PL_PROD"
+    )
