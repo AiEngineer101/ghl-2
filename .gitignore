@@ -9,3 +9,6 @@ venv/
 
 # Sales spec working copy extracted from the Bill-Kimberlin docs snapshot (not source code)
 _sales_specs/
+
+# Local reference copy of Bill's docs (engine blueprint, webhook contract, gates) — not source code
+_bill_docs/
