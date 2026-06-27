@@ -109,6 +109,20 @@ async def dashboard() -> FileResponse:
     return FileResponse(_DASHBOARD_PATH, media_type="text/html")
 
 
+@app.get("/debug/field-keys")
+async def debug_field_keys(contains: str = "") -> dict[str, Any]:
+    """Read-only: dump the opportunity custom-field key map (GHL field id -> short key).
+
+    Diagnostic for write-resolution issues (e.g. is 'sys_last_good_stage_code' a real key?).
+    Optional ?contains= filters to keys containing the substring.
+    """
+    id_to_key = await ghl.get_opportunity_field_key_map()
+    keys = sorted(id_to_key.values())
+    if contains:
+        keys = [k for k in keys if contains.lower() in k.lower()]
+    return {"total": len(id_to_key), "matched": len(keys), "keys": keys}
+
+
 @app.get("/healthz")
 async def healthz() -> dict[str, Any]:
     return {
