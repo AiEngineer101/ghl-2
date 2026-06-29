@@ -13,7 +13,17 @@
 (`gate-inspection-complete`'s GHL twin is Drafted = sole owner; the other two still have their
 GHL gate Published = harmless idempotent double-write).
 
-**Still GHL-only** — all the other `dt_*` inputs the Sales movers + `derived-production-readiness` read.
+**In code (SHADOW — built, awaiting validation + cutover):** Tier-1 Sales gates
+`gate-pay-retail-deposit`, `gate-pay-ins-deductible`, `gate-pay-ins-acv`, `gate-measurement-report`
+(all `SUPPORTS_WRITE=False`; registered before the movers; 4 tests each). Validate on `/decisions`
+(would_stamp + key resolves) on a Sales test opp, then flip to `True` and Draft the matching GHL gate.
+
+**Excluded from Sales (Production-scoped):** `gate-permit-approved` — Bill's spec says *In Pipeline:
+Production Pipeline*, so it is NOT a Sales gate. (Seam to raise with Bill: `derived-production-readiness`
+is a Sales handler that *reads* `dt_permit_approved`, but the stamping gate lives in Production. No
+Sales-side change needed today — most Sales deals resolve permit via `seg_permit_required = No`.)
+
+**Still GHL-only** — the D&C-sourced `dt_*` (Tier 3) plus any fallback-upload twins (Tier 2).
 
 ## The build pattern (every gate follows the existing 3)
 

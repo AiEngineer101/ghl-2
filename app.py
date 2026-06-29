@@ -28,6 +28,10 @@ from handlers import (
     gate_inspection_complete,
     gate_insurance_scope,
     gate_materials_verified,
+    gate_measurement_report,
+    gate_pay_ins_acv,
+    gate_pay_ins_deductible,
+    gate_pay_retail_deposit,
     gate_work_completed,
     gate_work_started,
     move_prod_p05_p10,
@@ -70,6 +74,12 @@ HANDLERS = [
     gate_front_home_photo,
     gate_inspection_complete,
     gate_insurance_scope,
+    # Sales EV->DT funding/measurement gates (Tier 1 of the gate migration — SHADOW until
+    # validated per docs/sales-gate-migration-plan.md).
+    gate_pay_retail_deposit,
+    gate_pay_ins_deductible,
+    gate_pay_ins_acv,
+    gate_measurement_report,
     derived_production_readiness,
     move_sales_s10_s20_inspection_complete,
     move_sales_s20_s30_scope_pending,
