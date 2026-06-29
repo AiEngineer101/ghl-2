@@ -8,7 +8,8 @@ this field; until now our code only READ it (the live GHL derived workflow compu
 the "DERIVED GAP"). This handler computes it ourselves so Sales can be fully migrated.
 
 sys_production_readiness = Yes requires ALL prerequisites for the job type (§6):
-  - Global (all):     dt_measurement_report_received, amt_contract_value,
+  - Global (all):     measurement report (live key `_measurement_report_received_date`,
+                      spec key `dt_measurement_report_received`), amt_contract_value,
                       (seg_permit_required = No OR dt_permit_approved)
   - Retail (adds):    dt_estimate_presented, dt_signed_contract_received,
                       dt_retail_deposit_proof_received
@@ -51,9 +52,16 @@ JOB_TYPE_RETAIL = "retail"
 JOB_TYPE_INSURANCE = "insurance"
 JOB_TYPE_HYBRID = "hybrid"
 
+# The measurement-report received date lives in LIVE GHL under the MALFORMED key
+# '_measurement_report_received_date' (missing the dt_ prefix) — NOT the spec key
+# 'dt_measurement_report_received'. We accept EITHER (see _measurement_report_present)
+# so readiness is correct against the live field today and a future key cleanup.
+# Bug fixed 2026-06-29: previously only the spec key was read, so the live field was
+# never seen and readiness always computed No (masked by the live GHL workflow).
+MEASUREMENT_REPORT_KEYS = ("_measurement_report_received_date", "dt_measurement_report_received")
+
 # (field_key, human label) prerequisite sets.
 GLOBAL_DTS = [
-    ("dt_measurement_report_received", "measurement report"),
     ("amt_contract_value", "contract value"),
 ]
 RETAIL_ADDS = [
@@ -112,6 +120,12 @@ def _permit_ok(custom: dict[str, Any]) -> bool:
     return req is not None and str(req).strip().lower() == "no"
 
 
+def _measurement_report_present(custom: dict[str, Any]) -> bool:
+    """True if the measurement-report received date is set under EITHER the live
+    malformed key or the spec key (see MEASUREMENT_REPORT_KEYS)."""
+    return any(truthy(custom.get(k)) for k in MEASUREMENT_REPORT_KEYS)
+
+
 def production_readiness(custom: dict[str, Any]) -> tuple[bool, list[str]]:
     """Return (is_ready, list_of_missing_items) for the opp's job type.
 
@@ -119,6 +133,8 @@ def production_readiness(custom: dict[str, Any]) -> tuple[bool, list[str]]:
     """
     missing: list[str] = []
 
+    if not _measurement_report_present(custom):
+        missing.append("measurement report")
     for key, label in GLOBAL_DTS:
         if not truthy(custom.get(key)):
             missing.append(label)
