@@ -169,3 +169,23 @@ def test_readiness_helper_returns_missing_list():
     assert ready is False
     assert "measurement report" in missing
     assert "estimate presented" in missing
+
+
+# --- measurement-report field-key fix (bug found 2026-06-29) ---
+
+def test_measurement_via_live_malformed_key_is_accepted():
+    """Live GHL stores the date under '_measurement_report_received_date' (no dt_ prefix);
+    readiness must accept it, not only the spec key."""
+    fields = dict(RETAIL_READY)
+    del fields["dt_measurement_report_received"]
+    fields["_measurement_report_received_date"] = "2026-06-26"
+    d = h.evaluate(_payload(**fields))
+    assert d["target_value"] == "Yes"
+
+
+def test_measurement_missing_both_keys_stamps_no():
+    fields = dict(RETAIL_READY)
+    del fields["dt_measurement_report_received"]  # neither key present
+    d = h.evaluate(_payload(**fields))
+    assert d["target_value"] == "No"
+    assert "measurement report" in d["reason"]
