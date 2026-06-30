@@ -119,6 +119,21 @@ async def dashboard() -> FileResponse:
     return FileResponse(_DASHBOARD_PATH, media_type="text/html")
 
 
+@app.get("/debug/field-keys")
+async def debug_field_keys(contains: str = "") -> dict[str, Any]:
+    """Read-only: dump the opportunity custom-field key map (GHL field id -> short key).
+
+    Diagnostic for write-resolution issues — confirms whether a gate's OUTPUT_FIELD
+    (e.g. '_measurement_report_received_date', 'dt_ins_acv_received') is a real, resolvable
+    live GHL field before cutting the gate over to active. Optional ?contains= substring filter.
+    """
+    id_to_key = await ghl.get_opportunity_field_key_map()
+    keys = sorted(id_to_key.values())
+    if contains:
+        keys = [k for k in keys if contains.lower() in k.lower()]
+    return {"total": len(id_to_key), "matched": len(keys), "keys": keys}
+
+
 @app.get("/healthz")
 async def healthz() -> dict[str, Any]:
     return {
