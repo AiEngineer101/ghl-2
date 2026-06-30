@@ -56,7 +56,7 @@ highest-value.
 | `gate-pay-ins-deductible` | (ins deductible proof) | `dt_ins_deductible_received` | S45→S46, readiness (Ins/Hybrid) |
 | `gate-pay-ins-acv` | (ACV proof) | `dt_ins_acv_received` | readiness (Ins/Hybrid) |
 | `gate-permit-approved` | `ev_permit_approved_doc` | `dt_permit_approved` | readiness (permit branch) |
-| `gate-measurement-report` | `ev_measurement_report` | `dt_measurement_report_received` | readiness (global) ⚠️ lowercase em-dash tag quirk (R9 §6.3) |
+| `gate-measurement-report` | `ev_measurement_report` | **`_measurement_report_received_date`** (LIVE key, not the spec `dt_measurement_report_received` — corrected 2026-06-29 to match the field derived-readiness reads) | readiness (global) ⚠️ lowercase em-dash tag quirk (R9 §6.3) |
 
 *Confirm each exact `ev_*` key against `_bill_docs/reference/field-registry.md` before coding.*
 

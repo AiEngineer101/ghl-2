@@ -30,13 +30,23 @@ def test_no_op_when_report_empty():
     assert r["decision"] == "no_op"
 
 
-def test_would_stamp_when_report_present_and_dt_empty():
+def test_would_stamp_targets_the_live_key():
     r = evaluate(_opp({INPUT_FIELD: "http://measure/report.pdf"}))
     assert r["decision"] == "would_stamp"
-    assert r["target_field"] == OUTPUT_FIELD
+    # Must write the LIVE (malformed) key so the PUT resolves to a real GHL field.
+    assert r["target_field"] == OUTPUT_FIELD == "_measurement_report_received_date"
     assert r["target_value"] == date.today().isoformat()
 
 
-def test_skip_idempotent_when_dt_already_set():
+def test_skip_idempotent_when_live_key_already_set():
     r = evaluate(_opp({INPUT_FIELD: "http://measure/report.pdf", OUTPUT_FIELD: "2026-06-20"}))
+    assert r["decision"] == "skip_idempotent"
+
+
+def test_skip_idempotent_when_spec_key_already_set():
+    """Tolerate the spec key dt_measurement_report_received as 'already received' too."""
+    r = evaluate(_opp({
+        INPUT_FIELD: "http://measure/report.pdf",
+        "dt_measurement_report_received": "2026-06-20",
+    }))
     assert r["decision"] == "skip_idempotent"
