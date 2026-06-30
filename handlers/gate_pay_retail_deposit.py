@@ -8,10 +8,10 @@ Spec source: workflow/01-gates/ev-to-dt/gate-pay-retail-deposit.md
 
 Feeds the S45->S46 funding move and production-readiness (Retail/Hybrid).
 
-SHADOW (SUPPORTS_WRITE=False) — new gate per docs/sales-gate-migration-plan.md (Tier 1): ship
-shadow, validate on /decisions (would_stamp + key resolves) on a test opp, THEN flip to True and
-Draft the matching GHL gate. The live GHL gate keeps stamping until then (idempotent on the
-write-once date, so the overlap is harmless).
+ACTIVE (SUPPORTS_WRITE=True; cut over 2026-06-30 after the output key was verified live via
+/debug/field-keys). The matching GHL gate (WF | Gate | PayRetailDeposit) stays Published until
+you Draft it — harmless idempotent overlap, since both write the same write-once date. Per
+docs/sales-gate-migration-plan.md.
 """
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity
 
 HANDLER_ID = "gate-pay-retail-deposit"
-SUPPORTS_WRITE = False  # shadow until validated (see docs/sales-gate-migration-plan.md)
+SUPPORTS_WRITE = True  # ACTIVE (cut over 2026-06-30; output key verified live via /debug/field-keys)
 
 PIPELINE_ID_SALES = "9KlQhUS34GzTN9q34WKF"
 INPUT_FIELD = "ev_retail_deposit_proof"

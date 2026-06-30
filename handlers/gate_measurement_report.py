@@ -17,10 +17,10 @@ for idempotency, so it never double-stamps and stays consistent with the live GH
 Feeds production-readiness (global prerequisite). NOTE: measurement report is context-only — it
 is NOT a stage-exit gate; it only contributes to readiness (do not expect it to move a stage).
 
-SHADOW (SUPPORTS_WRITE=False) — new gate per docs/sales-gate-migration-plan.md (Tier 1): ship
-shadow, validate on /decisions (would_stamp + key resolves) on a test opp, THEN flip to True and
-Draft the matching GHL gate. The live GHL gate keeps stamping until then (idempotent on the
-write-once date, so the overlap is harmless).
+ACTIVE (SUPPORTS_WRITE=True; cut over 2026-06-30 after the output key _measurement_report_received_date
+was verified live via /debug/field-keys). The matching GHL gate (WF | Gate | MeasurementReport)
+stays Published until you Draft it — harmless idempotent overlap, since both write the same
+write-once date. Per docs/sales-gate-migration-plan.md.
 
 Note: the GHL gate also flips lowercase "status —/missing —" measurement-report tags — tag parity
 is phase 2 (our readiness keys on the date, not tags), so this handler stamps the date only.
@@ -33,7 +33,7 @@ from typing import Any
 from handlers._common import custom_field_map, truthy, unwrap_opportunity
 
 HANDLER_ID = "gate-measurement-report"
-SUPPORTS_WRITE = False  # shadow until validated (see docs/sales-gate-migration-plan.md)
+SUPPORTS_WRITE = True  # ACTIVE (cut over 2026-06-30; output key verified live via /debug/field-keys)
 
 PIPELINE_ID_SALES = "9KlQhUS34GzTN9q34WKF"
 INPUT_FIELD = "ev_measurement_report"
