@@ -45,6 +45,20 @@ def _to_float(value: Any) -> float | None:
         return None
 
 
+def is_cash_reconciled(custom: dict[str, Any]) -> bool:
+    """Pure check straight from the amount fields (no stored flag): True iff a contract
+    value is present AND funds received >= contract (missing/blank funds count as $0).
+    Lets closeout readiness / the P40->P50 mover decide in a SINGLE event instead of
+    waiting for sys_closeout_cash_reconciled to be written and echoed back by GHL."""
+    contract = _to_float(custom.get(FIELD_CONTRACT_VALUE))
+    if contract is None:
+        return False
+    funds = _to_float(custom.get(FIELD_FUNDS_RECEIVED))
+    if funds is None:
+        funds = 0.0
+    return funds >= contract
+
+
 def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
     opp = unwrap_opportunity(payload)
     custom = custom_field_map(opp)
