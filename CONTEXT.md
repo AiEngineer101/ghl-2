@@ -317,3 +317,30 @@ Diffed the 07-01 Bill-Kimberlin docs against our 06-27 baseline (`_bill_docs/`).
 - `_bill_docs/` refreshed to a **full 07-01 mirror** (258 files: complete `workflow/`, `docs/`, `engine/`, `project-files/`; gitignored) — a proper baseline so future snapshot diffs are exact. (Prior copy was a partial subset, which is why the 06-27→07-01 file-level diff couldn't run against the deleted scratchpad extract.)
 
 **Net:** the 07-01 snapshot is operationally a no-op for the build; our Sales cutover + gate-migration plan are unaffected. Any genuinely new *design* docs (document-intake pipeline, conversation-intake, ghl-api-capability-map, universal-contract-gate-build) are future-work inputs, not current-build changes.
+
+---
+
+## 16. GHL Custom Objects — new data model (affects the Insurance path)
+
+Source: `_bill_docs/docs/ghl-native/custom-objects-data-model.md` (Bill, 2026-06-24; reconciled 2026-06-30). **Status: DESIGN INPUT — not controlled doctrine yet.** Bill built 4 GHL custom objects + native extensions that relocate claim/supplement/change-order/policy data OFF the Opportunity.
+
+**New objects:** **Insurance Claim** (1/job, key `claim_number`) · **Supplement** (≤8/claim) · **Change Order** (≤8/job) · **Crew** (reusable). **Company** extended with subcontractor compliance; **Contact** extended with policy fields.
+
+**Linking = GHL association labels (§8), not fields:** Insurance Claim↔Opportunity ("Job Claim" 1↔1) · Claim↔Contact ("Policy Holder", "Adjuster on Claim") · Claim↔Company ("Carrier") · Change Order/Supplement↔Opportunity · Crew↔Opportunity/Contact/Company.
+
+**Rollup pattern (Track B / engine):** per-record detail lives on the child object; the **engine** reads children, computes totals, and writes UP to the existing Opportunity gate fields (`amt_contract_value`, `amt_total_funds_received`, payment `dt_*`, `sys_*`). Gates read the Opportunity rollup unchanged.
+
+**⚠️ Impact on our code — the Insurance-path Opportunity fields we read get relocated:**
+| Field we read | Handler(s) | New home |
+|---|---|---|
+| `seg_insurance_claim_number` | `derived-production-readiness` | Insurance Claim object `claim_number` |
+| `seg_insurance_carrier_name` | `derived-production-readiness` | **Carrier** = Company association |
+| `dt_insurance_scope_received` | `gate-insurance-scope`, `move-sales-s20-s30`/`s30-s40`, readiness | Insurance Claim object (EV `ev_insurance_scope` + system DT there) |
+| change-order / supplement `dt_*`, `seg_change_order_treatment`, crew-chargeback / company-vendor docs | Production closeout (`derived-closeout-ready`) | Change Order / Supplement objects (engine rolls up) |
+| policy #, deductible, ACV/RCV | (not read today) | Contact (policy) / Claim object |
+
+**What protects us right now — LOCKED sequencing law (§9):** *"define contract → build engine to it → verify in the build account → THEN retire the legacy Opportunity fields; never retire a field before its engine reader is live AND verified."* → **The old Opportunity fields stay live until we build readers for the new objects.** Nothing breaks today; migration is future work.
+
+**Architectural signal (§9, "clean break" 2026-06-30):** the claim-exists / production-readiness decision is intended to move **fully into the engine reading its Postgres graph** of custom objects — `sys_production_readiness` "survives only as an optional engine-written *display* value, **never a gate input**." This **supersedes** the framing behind our `derived-production-readiness` (which gates on Opportunity fields). Not an immediate change; it's the end-state direction.
+
+**Plan:** see `docs/custom-objects-incorporation-plan.md`.
