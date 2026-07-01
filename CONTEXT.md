@@ -305,3 +305,15 @@ Two follow-up gaps from the Sales review are now closed (test count **211**, all
 **Diagnostics added (read-only, kept):** `/debug/workflows`, `/debug/field-keys`, `/debug/opp-fields` (+ `ghl_client.get_workflows`). The temporary `/debug/test-write-lastgood` write-probe was removed. Tests: **211 passing.** Test opps used today: `YlKKKJ1WM6UaG5kIDh1h`, `rCZ51hZFEFO9EMaenXVZ`, `nMwepCyMS4ryu4JvvYbE` (all now in the opp-allowlist; Sales is also pipeline-allowlisted so the allowlist is redundant for Sales).
 
 **Still open:** rotate the `AiEngineer101` PAT (pasted in plaintext during the session). The R9 Production last-good "wrong code" item is effectively **resolved** — our movers stamp the correct destination via the shared path (they never had the P05/P10/P20 bug; `p20-p30` had simply not stamped at all, now fixed).
+
+---
+
+## 15. July 01 sync — Bill snapshot `smartroofing_repo_2026-07-01` (NO material changes)
+
+Diffed the 07-01 Bill-Kimberlin docs against our 06-27 baseline (`_bill_docs/`). **Result: nothing that affects our code changed.**
+- **No new CRs** — still CR-0027 (2026-06-23). Doctrine/specs stable.
+- **Byte-identical vs 06-27** for everything we depend on: the entire `engine/`, ALL gate specs (`workflow/01-gates/**`), `webhook-event-contract-DRAFT.md`, `field-registry.md`, `R9-spec-defects-DRAFT.md`, `pipelines-and-stages.md` (hash-compared — zero diffs).
+- **Measurement-report discrepancy persists in the docs:** `gate-measurement-report.md` and `derived-production-readiness.md` still spec `dt_measurement_report_received`, but LIVE GHL stores the date under the malformed key `_measurement_report_received_date`. Our `derived_production_readiness.py` already accepts BOTH keys (fixed 2026-06-29) — no code change needed; still a seam to raise with Bill.
+- `_bill_docs/` refreshed to a **full 07-01 mirror** (258 files: complete `workflow/`, `docs/`, `engine/`, `project-files/`; gitignored) — a proper baseline so future snapshot diffs are exact. (Prior copy was a partial subset, which is why the 06-27→07-01 file-level diff couldn't run against the deleted scratchpad extract.)
+
+**Net:** the 07-01 snapshot is operationally a no-op for the build; our Sales cutover + gate-migration plan are unaffected. Any genuinely new *design* docs (document-intake pipeline, conversation-intake, ghl-api-capability-map, universal-contract-gate-build) are future-work inputs, not current-build changes.
