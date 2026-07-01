@@ -25,6 +25,7 @@ from __future__ import annotations
 from typing import Any
 
 from handlers._common import custom_field_map, truthy, unwrap_opportunity, yes
+from handlers.derived_closeout_cash_reconciled import is_cash_reconciled
 
 HANDLER_ID = "derived-closeout-ready"
 SUPPORTS_WRITE = True  # ACTIVE (cut over 2026-06-21)
@@ -80,7 +81,10 @@ def closeout_readiness(custom: dict[str, Any]) -> tuple[bool, list[str]]:
         missing.append("certificate of completion (COC)")
     if not truthy(custom.get("dt_final_walkthrough_proof_received")):
         missing.append("final walkthrough")
-    if not yes(custom.get("sys_closeout_cash_reconciled")):
+    # Accept the stored flag OR a fresh compute from the raw amounts, so closeout readiness
+    # is satisfied in the SAME event the payment is entered (no multi-hop lag waiting for
+    # sys_closeout_cash_reconciled to be written first).
+    if not (yes(custom.get("sys_closeout_cash_reconciled")) or is_cash_reconciled(custom)):
         missing.append("cash reconciled (full payment)")
     # Permit only required when seg_permit_required = Yes.
     if yes(custom.get("seg_permit_required")) and not truthy(custom.get("dt_permit_approved")):
