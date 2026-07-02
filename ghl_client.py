@@ -48,6 +48,32 @@ class GHLReadOnlyClient:
         except Exception as exc:  # noqa: BLE001 — diagnostic, report everything
             return {"path": path, "status": None, "ok": False, "error": repr(exc)}
 
+    async def get_record_relations(self, record_id: str) -> dict[str, Any]:
+        """Read-only: all association relations for a record (e.g. an opp -> its Claim/CO/…).
+
+        Confirmed working via the /debug/co-probe spike (2026-07-02, World A):
+        GET /associations/relations/{recordId}?locationId=.
+        """
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(
+                f"{self.base}/associations/relations/{record_id}",
+                headers=self.headers,
+                params={"locationId": settings.ghl_location_id},
+            )
+            r.raise_for_status()
+            return r.json()
+
+    async def get_object_record(self, schema_key: str, record_id: str) -> dict[str, Any]:
+        """Read-only: a single custom-object record (Insurance Claim / Supplement / …)."""
+        async with httpx.AsyncClient(timeout=10) as c:
+            r = await c.get(
+                f"{self.base}/objects/{schema_key}/records/{record_id}",
+                headers=self.headers,
+                params={"locationId": settings.ghl_location_id},
+            )
+            r.raise_for_status()
+            return r.json()
+
     async def get_pipelines(self) -> list[dict[str, Any]]:
         async with httpx.AsyncClient(timeout=10) as c:
             r = await c.get(
