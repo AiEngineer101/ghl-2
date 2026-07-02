@@ -134,6 +134,47 @@ async def debug_field_keys(contains: str = "") -> dict[str, Any]:
     return {"total": len(id_to_key), "matched": len(keys), "keys": keys}
 
 
+@app.get("/debug/co-probe")
+async def debug_co_probe(
+    opp_id: str = "", schema_key: str = "", record_id: str = ""
+) -> dict[str, Any]:
+    """Read-only spike for the custom-objects fork (World A vs B).
+
+    Probes candidate GHL endpoints to learn: does our PIT have custom-object /
+    association read scopes; can we traverse opp -> Claim; and (given a Claim's
+    schema_key+record_id) what its LIVE field keys are. Every call is read-only and
+    never raises — each probe reports {status, ok, body/error}.
+
+    Usage: /debug/co-probe?opp_id=<insurance opp with a claim>
+           &schema_key=<claim schema key>&record_id=<claim record id>   (both optional)
+    """
+    loc = settings.ghl_location_id
+    probes: dict[str, Any] = {}
+    # Q1 — list custom-object schemas (reveals schemaKeys + confirms object read scope)
+    probes["schemas_list"] = await ghl.probe("/objects/", {"locationId": loc})
+    # Q2 — association definitions (labels + associationIds)
+    probes["associations_list"] = await ghl.probe("/associations/", {"locationId": loc})
+    if opp_id:
+        # Q3 — candidate opp -> related-records reads (which path, if any, works?)
+        probes["relations_path_style"] = await ghl.probe(
+            f"/associations/relations/{opp_id}", {"locationId": loc}
+        )
+        probes["relations_query_style"] = await ghl.probe(
+            "/associations/relations", {"recordId": opp_id, "locationId": loc}
+        )
+    if schema_key and opp_id:
+        # Q3b — records search for a Claim referencing this opp (candidate path)
+        probes["records_search"] = await ghl.probe(
+            f"/objects/{schema_key}/records/search", {"locationId": loc, "query": opp_id}
+        )
+    if schema_key and record_id:
+        # Q4 — read a known Claim record -> live field keys (vs the spec)
+        probes["record_by_id"] = await ghl.probe(
+            f"/objects/{schema_key}/records/{record_id}", {"locationId": loc}
+        )
+    return {"location": loc, "probes": probes}
+
+
 @app.get("/healthz")
 async def healthz() -> dict[str, Any]:
     return {

@@ -32,6 +32,22 @@ class GHLReadOnlyClient:
             r.raise_for_status()
             return r.json()
 
+    async def probe(self, path: str, params: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Read-only diagnostic GET that never raises — returns status + body snippet.
+
+        Used only by /debug custom-object spikes to discover which GHL endpoints/scopes
+        actually work with our PIT. Read-only; safe.
+        """
+        url = f"{self.base}{path}"
+        try:
+            async with httpx.AsyncClient(timeout=15) as c:
+                r = await c.get(url, headers=self.headers, params=params or {})
+            ctype = r.headers.get("content-type", "")
+            body: Any = r.json() if "application/json" in ctype else r.text[:600]
+            return {"path": path, "status": r.status_code, "ok": r.is_success, "body": body}
+        except Exception as exc:  # noqa: BLE001 — diagnostic, report everything
+            return {"path": path, "status": None, "ok": False, "error": repr(exc)}
+
     async def get_pipelines(self) -> list[dict[str, Any]]:
         async with httpx.AsyncClient(timeout=10) as c:
             r = await c.get(
