@@ -47,11 +47,32 @@ Phase-1 contract ("Dhruv confirms buildable"). Everything past the spike waits o
   Opportunity `amt_*` rollups (the one place we still write UP to the Opportunity). Standalone
   customFields PUT (combined-with-stage PUTs drop customFields — 06-27 lesson).
 
-## API reality (from `ghl-api-capability-map.md`, verify in the spike)
-- Read: `GET all-relations-by-record-id` (opp → associated Claim/CO/Supplement ids) → record GETs. ✅ documented
-- `RecordCreate/RecordUpdate/RecordDelete` webhooks exist → child-record changes can trigger recompute.
-- ⚠️ **Association API scope is NOT in `Scopes.md`** — the #1 thing the spike must confirm on our PIT.
-- Association *creation* via REST is contact-only (irrelevant — we only read).
+## ⚠️ ARCHITECTURE FORK (discovered 07-02 — resolve before committing to a build)
+The whole reader approach hinges on one unverified thing: **can our engine get from an Opportunity
+to its associated Claim record via the GHL API?**
+- ✅ **Reading a record by id is supported:** `GET /objects/:schemaKey/records/:id` (scope
+  `objects/record.readonly`, path verified).
+- ❌/❓ **Reading the opp→Claim *association* is UNVERIFIED.** The endpoint catalog only confirms
+  `POST /associations/relations` (write/mirror, contact-based, object↔object unverified); a
+  relations-*read* + a records-*search* endpoint are marked "exists — VERIFY path." The docs
+  explicitly state **"Postgres owns the record-level relations"** and the engine "never reads it back"
+  from GHL.
+
+**Two possible worlds — the spike decides which:**
+- **World A — GHL traversal works** (association-read or records-search by an opp/job property on the
+  Claim). → Our current model (fetch opp per event → fetch its Claim) works; custom objects are a
+  **reader add-on**. Small-ish.
+- **World B — GHL traversal NOT reliably supported** (the doc's stated design). → The engine must own
+  the **opp↔Claim linkage in its own store** (populated by ingestion / `capture-api`), i.e. the
+  **§9 Postgres-graph architecture**. That is a **much larger lift** (a persistent relationship graph
+  + ingestion feeding it) — NOT a small add-on, and it changes our infra (we're SQLite-shadow today).
+
+**Implication:** "incorporate custom objects" may be a big architecture step, not a quick reader.
+Do **not** commit an approach until the spike resolves the fork. This is the single most important
+open question — bigger than the field-key/scope unknowns.
+
+- `RecordCreate/RecordUpdate/RecordDelete` webhooks exist → child-record changes can trigger recompute (both worlds).
+- ⚠️ Association/record scopes are flagged absent/VERIFY in `Scopes.md` — confirm on our PIT first.
 
 ## Party model (refined 07-02 — affects what we traverse)
 Only **Adjuster** (Contact assoc "Adjuster on Claim") and **Carrier** (Company assoc) are real links to
@@ -59,13 +80,20 @@ read. **Insurance Agent + Mortgagee are plain reference fields on the policyhold
 (`seg_insurance_agent_*`, `seg_mortgagee_name`, `seg_has_mortgagee`) — read them off the Contact, no
 association traversal.
 
-## STEP WE CAN DO NOW — the read spike (read-only, ungated)
-A ~half-day spike that turns the biggest unknowns into facts and feeds Bill's Phase-1 contract:
-1. `ghl_client` read methods: `get_opp_relations(opp_id)`, `get_custom_record(object_key, id)` (read-only).
-2. A `/debug/opp-relations/{opp_id}` endpoint dumping an opp's associated Claim/CO/Supplement records + their live field keys.
-3. Point it at a real Insurance opp that has a Claim in the build account. Capture: does our **PIT have the association scope**? what are the **live field keys** (vs the doc)? what's the relation/record JSON shape?
-**Deliverable:** a short findings note → hands Bill's Phase-1 contract concrete, verified facts.
-This is the ONLY custom-objects build step that's safe before the contract exists.
+## STEP WE CAN DO NOW — the read spike (read-only, ungated) — RESOLVES THE FORK
+A ~half-day read-only spike whose #1 job is to **decide World A vs World B**, and secondarily
+capture scopes + live keys. Feeds Bill's Phase-1 contract.
+1. `ghl_client` read methods (read-only): try, in order —
+   (a) **association read** opp → related records (whatever the live path is);
+   (b) **records search** for a Claim whose job/opp property == this opp id;
+   (c) `GET /objects/:schemaKey/records/:id` on a known Claim id (baseline: proves record-read works).
+2. A `/debug/opp-relations/{opp_id}` endpoint reporting: which of (a)/(b)/(c) succeeded, the scopes
+   our PIT actually has, and the **live field keys** on the Claim (vs the doc).
+3. Point it at a real Insurance opp **that has a Claim** in the build account.
+**Deliverable / decision:** World A (traversal works → reader add-on) or World B (must build the
+Postgres graph → escalate scope to Bill). Plus verified scopes + live keys for the Phase-1 contract.
+This is the ONLY custom-objects build step that's safe before the contract exists — and it prevents
+committing to the wrong architecture.
 
 ## After the contract (SOP Phase 4+, our core work — gated)
 | Step | What | Depends on |
