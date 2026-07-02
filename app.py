@@ -155,20 +155,25 @@ async def debug_co_probe(
     # Q2 — association definitions (labels + associationIds)
     probes["associations_list"] = await ghl.probe("/associations/", {"locationId": loc})
     if opp_id:
-        # Q3 — candidate opp -> related-records reads (which path, if any, works?)
-        probes["relations_path_style"] = await ghl.probe(
-            f"/associations/relations/{opp_id}", {"locationId": loc}
-        )
-        probes["relations_query_style"] = await ghl.probe(
-            "/associations/relations", {"recordId": opp_id, "locationId": loc}
-        )
-    if schema_key and opp_id:
-        # Q3b — records search for a Claim referencing this opp (candidate path)
-        probes["records_search"] = await ghl.probe(
-            f"/objects/{schema_key}/records/search", {"locationId": loc, "query": opp_id}
-        )
+        # Q3 — opp -> related-records read (CONFIRMED working: path style, 200).
+        rel = await ghl.probe(f"/associations/relations/{opp_id}", {"locationId": loc})
+        probes["relations"] = rel
+        # Q3b — auto-follow: for every related CUSTOM-OBJECT record, read it -> live field keys.
+        followed: dict[str, Any] = {}
+        body = rel.get("body") if isinstance(rel, dict) else None
+        for r in (body or {}).get("relations", []) if isinstance(body, dict) else []:
+            for okey, rid in (
+                (r.get("firstObjectKey"), r.get("firstRecordId")),
+                (r.get("secondObjectKey"), r.get("secondRecordId")),
+            ):
+                if isinstance(okey, str) and okey.startswith("custom_objects.") and rid:
+                    followed[f"{okey}:{rid}"] = await ghl.probe(
+                        f"/objects/{okey}/records/{rid}", {"locationId": loc}
+                    )
+        if followed:
+            probes["followed_custom_records"] = followed
     if schema_key and record_id:
-        # Q4 — read a known Claim record -> live field keys (vs the spec)
+        # Q4 — read a specific record by id (when you already know it) -> live field keys.
         probes["record_by_id"] = await ghl.probe(
             f"/objects/{schema_key}/records/{record_id}", {"locationId": loc}
         )
