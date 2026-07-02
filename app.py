@@ -24,6 +24,7 @@ from handlers import (
     derived_production_readiness,
     enforce_sales_stage_truth_invariant,
     enforce_stage_truth_invariant,
+    gate_estimate_presented_fallback,
     gate_front_home_photo,
     gate_inspection_complete,
     gate_insurance_scope,
@@ -32,6 +33,7 @@ from handlers import (
     gate_pay_ins_acv,
     gate_pay_ins_deductible,
     gate_pay_retail_deposit,
+    gate_signed_contract_fallback,
     gate_work_completed,
     gate_work_started,
     move_prod_p05_p10,
@@ -74,12 +76,15 @@ HANDLERS = [
     gate_front_home_photo,
     gate_inspection_complete,
     gate_insurance_scope,
-    # Sales EV->DT funding/measurement gates (Tier 1 of the gate migration — SHADOW until
-    # validated per docs/sales-gate-migration-plan.md).
+    # Sales EV->DT funding/measurement gates (Tier 1 of the gate migration — ACTIVE, keys
+    # verified live per docs/sales-gate-migration-plan.md).
     gate_pay_retail_deposit,
     gate_pay_ins_deductible,
     gate_pay_ins_acv,
     gate_measurement_report,
+    # Tier 2 EV fallback gates for the D&C-sourced dates (manual-upload path; D&C primary is Tier 3).
+    gate_estimate_presented_fallback,
+    gate_signed_contract_fallback,
     derived_production_readiness,
     move_sales_s10_s20_inspection_complete,
     move_sales_s20_s30_scope_pending,
