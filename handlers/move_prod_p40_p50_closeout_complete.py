@@ -90,9 +90,17 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+MILESTONE_TAGS = ["milestone — closeout complete", "milestone — review requested"]
+
+
 async def execute(opp_data: dict[str, Any], decision: dict[str, Any]) -> dict[str, Any]:
-    """Perform the P40->P50 move + stamp sys_last_good_* (P50) via the shared writer path."""
-    from handlers._writers import move_stage
-    return await move_stage(
+    """Perform the P40->P50 move + stamp sys_last_good_* (P50) + add milestone tags."""
+    from handlers._writers import add_contact_tags, move_stage
+
+    result = await move_stage(
         opp_data, decision, last_good_stage_code="P50", last_good_pipeline_code="PL_PROD"
     )
+    if result.get("executed"):
+        tag_result = await add_contact_tags(opp_data, MILESTONE_TAGS, handler_id=HANDLER_ID)
+        result["tags"] = tag_result
+    return result

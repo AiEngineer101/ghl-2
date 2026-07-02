@@ -72,6 +72,29 @@ async def _last_good_custom_fields(
     return out
 
 
+async def add_contact_tags(
+    opp_data: dict[str, Any],
+    tags: list[str],
+    handler_id: str | None = None,
+) -> dict[str, Any]:
+    """POST milestone tags to the contact linked to this opportunity.
+
+    Reads contactId from the opp. Returns executed=False if contactId is absent.
+    Best-effort — caller should not block the move on tag failure.
+    """
+    from ghl_writer import writer
+
+    opp = unwrap_opportunity({"opportunity": opp_data})
+    contact_id = opp.get("contactId")
+    pipeline_id = opp.get("pipelineId")
+    if not contact_id:
+        return {"executed": False, "reason": "no contactId on opp; tags not stamped"}
+    response = await writer.add_contact_tags(
+        contact_id, tags, current_pipeline_id=pipeline_id, handler_id=handler_id
+    )
+    return {"executed": True, "response": response, "applied": {"tags": tags}}
+
+
 async def move_stage(
     opp_data: dict[str, Any],
     decision: dict[str, Any],

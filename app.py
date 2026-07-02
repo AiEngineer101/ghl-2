@@ -28,6 +28,8 @@ from handlers import (
     gate_front_home_photo,
     gate_inspection_complete,
     gate_insurance_scope,
+    gate_crew_confirmed,
+    gate_material_id_report,
     gate_materials_verified,
     gate_measurement_report,
     gate_pay_ins_acv,
@@ -60,6 +62,8 @@ log = logging.getLogger("shadow")
 # enforcer runs LAST so it sees the post-mover state and only rewinds if invariants
 # are still broken.
 HANDLERS = [
+    gate_material_id_report,
+    gate_crew_confirmed,
     gate_materials_verified,
     gate_work_started,
     gate_work_completed,

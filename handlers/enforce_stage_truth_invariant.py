@@ -22,7 +22,7 @@ Two regimes:
     has no entry-truth gate of its own — it is left alone.
 
 Stage entry requirements (per the live stage-gate specs):
-  P10  requires  dt_install_scheduled is not empty
+  P10  requires  dt_material_id_report_received is not empty (materials order confirmed)
   P20  requires  tf_work_started   = Yes
   P30  requires  tf_work_completed = Yes
   P05  requires  (nothing — base stage)
@@ -54,7 +54,7 @@ STAGE_LADDER: list[tuple[str, str, Any]] = [
     (
         STAGE_ID_P10,
         "P10",
-        lambda cf: (truthy(cf.get("dt_install_scheduled")), "dt_install_scheduled"),
+        lambda cf: (truthy(cf.get("dt_material_id_report_received")), "dt_material_id_report_received"),
     ),
     (
         STAGE_ID_P20,

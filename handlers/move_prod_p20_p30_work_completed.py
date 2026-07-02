@@ -1,9 +1,12 @@
 """Shadow handler for WF | Move | Prod | P20->P30 Work Completed.
 
-Spec source: workflow/03-move/production/move-prod-p20-p30-work-completed.md
-- Trigger (live): Opportunity Changed, "Custom field updated: tf_work_completed"
-- IF: Pipeline=Production AND Stage in {P10, P20} AND tf_work_completed=Yes
-- DO: Move to PL_PROD / P30 (Job Completed)
+Spec source: production/job-in-progress.md §4
+- Trigger: tf_work_completed = Yes
+- Full exit gate (ALL required):
+    1. seg_stop_work_status empty OR in {Clear..., Resolved...}
+    2. tf_work_completed = Yes
+- IF: Pipeline=Production AND Stage in {P10, P20} AND all pass
+- DO: Stamp dt_work_completed + move to PL_PROD / P30 (Job Completed)
 - Idempotent: skip if already at P30 or beyond
 
 Active writer — the corresponding live GHL workflow should be set to Draft.
@@ -31,6 +34,12 @@ STAGES_AT_OR_AFTER_P30: set[str] = {
 }
 
 INPUT_FIELD_WORK_COMPLETED = "tf_work_completed"
+INPUT_FIELD_STOP_WORK = "seg_stop_work_status"
+
+STOP_WORK_NON_BLOCKING: set[str] = {
+    "Clear — Work Can Proceed",
+    "Resolved — Work Can Proceed",
+}
 
 
 def _yes(value: Any) -> bool:
@@ -42,12 +51,32 @@ def _yes(value: Any) -> bool:
     return str(value).strip().lower() == "yes"
 
 
+def _stop_work_blocks(value: Any) -> tuple[bool, str]:
+    """Return (is_blocking, display_value)."""
+    if value is None:
+        return False, ""
+    if isinstance(value, list):
+        for v in value:
+            if v not in (None, ""):
+                value = v
+                break
+        else:
+            return False, ""
+    s = str(value).strip()
+    if not s:
+        return False, s
+    if s in STOP_WORK_NON_BLOCKING:
+        return False, s
+    return True, s
+
+
 def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
     opp = unwrap_opportunity(payload)
     pipeline_id = opp.get("pipelineId")
     stage_id = opp.get("pipelineStageId")
     custom = custom_field_map(opp)
     work_completed = custom.get(INPUT_FIELD_WORK_COMPLETED)
+    stop_work = custom.get(INPUT_FIELD_STOP_WORK)
 
     base = {
         "handler_id": HANDLER_ID,
@@ -81,6 +110,17 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
             **base,
             "decision": "skip_condition_unmet",
             "reason": f"{INPUT_FIELD_WORK_COMPLETED} != Yes (value={work_completed!r})",
+        }
+
+    blocked, sw_value = _stop_work_blocks(stop_work)
+    if blocked:
+        return {
+            **base,
+            "decision": "skip_blocked",
+            "reason": (
+                f"{INPUT_FIELD_STOP_WORK}={sw_value!r} is active; "
+                f"blocked — stop work prevents work completion"
+            ),
         }
 
     from_stage_label = "P10" if stage_id == STAGE_ID_P10 else "P20"

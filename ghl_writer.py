@@ -56,6 +56,33 @@ class GHLWriter:
         if not allowed:
             raise WriteNotAllowed(reason)
 
+    async def add_contact_tags(
+        self,
+        contact_id: str,
+        tags: list[str],
+        current_pipeline_id: str | None = None,
+        handler_id: str | None = None,
+    ) -> dict[str, Any]:
+        """POST /contacts/{contactId}/tags — adds milestone tags to a contact.
+
+        Uses the pipeline_id for the write-guard allowlist check (same opp pipeline).
+        """
+        self._enforce(None, current_pipeline_id, handler_id)
+        log.info(
+            "WRITE POST /contacts/%s/tags handler=%s tags=%s",
+            contact_id,
+            handler_id,
+            tags,
+        )
+        async with httpx.AsyncClient(timeout=15) as c:
+            r = await c.post(
+                f"{self.base}/contacts/{contact_id}/tags",
+                headers=self.headers,
+                json={"tags": tags},
+            )
+            r.raise_for_status()
+            return r.json()
+
     async def update_opportunity(
         self,
         opp_id: str,

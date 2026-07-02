@@ -1,9 +1,13 @@
 """Shadow handler for WF | Move | Prod | P10->P20 Work Started.
 
-Spec source: workflow/03-move/production/move-prod-p10-p20-work-started.md
-- Trigger (live): Opportunity Changed, "Custom field updated: tf_work_started"
-- IF: Pipeline=Production AND Stage in {P05,P10} AND tf_work_started=Yes
-      AND (seg_stop_work_status empty OR in {Clear..., Resolved...})
+Spec source: production/production-scheduled.md §4
+- Trigger: tf_work_started = Yes
+- Full exit gate (ALL required before stamping dt_work_started and moving):
+    1. dt_material_id_report_received is not empty
+    2. dt_materials_verified is not empty
+    3. seg_stop_work_status empty OR in {Clear..., Resolved...}
+    4. tf_work_started = Yes
+- IF: Pipeline=Production AND Stage in {P05,P10} AND all four pass
 - DO: Move to PL_PROD / P20 (Job In Progress)
 - Idempotent: skip if already at P20 or beyond
 
@@ -38,6 +42,8 @@ STAGES_AT_OR_AFTER_P20: set[str] = {
     "de0bc542-b6a0-4885-b991-18ed02b19fe7",  # P50
 }
 
+INPUT_FIELD_MATERIAL_ID_REPORT = "dt_material_id_report_received"
+INPUT_FIELD_MATERIALS_VERIFIED = "dt_materials_verified"
 INPUT_FIELD_WORK_STARTED = "tf_work_started"
 INPUT_FIELD_STOP_WORK = "seg_stop_work_status"
 
@@ -122,6 +128,23 @@ def evaluate(payload: dict[str, Any]) -> dict[str, Any]:
             **base,
             "decision": "skip_condition_unmet",
             "reason": f"{INPUT_FIELD_WORK_STARTED} != Yes (value={work_started!r})",
+        }
+
+    # Additional exit-gate checks (spec production-scheduled.md §4 conditions 1-2)
+    material_id_report = custom.get(INPUT_FIELD_MATERIAL_ID_REPORT)
+    if not truthy(material_id_report):
+        return {
+            **base,
+            "decision": "skip_blocked",
+            "reason": f"{INPUT_FIELD_MATERIAL_ID_REPORT} is empty; blocked — missing material ID report",
+        }
+
+    materials_verified = custom.get(INPUT_FIELD_MATERIALS_VERIFIED)
+    if not truthy(materials_verified):
+        return {
+            **base,
+            "decision": "skip_condition_unmet",
+            "reason": f"{INPUT_FIELD_MATERIALS_VERIFIED} is empty; next | verify materials",
         }
 
     blocked, sw_value = _stop_work_blocks(stop_work)
