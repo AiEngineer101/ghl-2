@@ -344,3 +344,19 @@ Source: `_bill_docs/docs/ghl-native/custom-objects-data-model.md` (Bill, 2026-06
 **Architectural signal (§9, "clean break" 2026-06-30):** the claim-exists / production-readiness decision is intended to move **fully into the engine reading its Postgres graph** of custom objects — `sys_production_readiness` "survives only as an optional engine-written *display* value, **never a gate input**." This **supersedes** the framing behind our `derived-production-readiness` (which gates on Opportunity fields). Not an immediate change; it's the end-state direction.
 
 **Plan:** see `docs/custom-objects-incorporation-plan.md`.
+
+---
+
+## 17. July 02 sync — Bill snapshot `smartroofing_repo_2026-07-02` (small but real changes)
+
+Diffed against the 07-01 full mirror. **No new CRs** (still CR-0027). `_bill_docs/` refreshed to a full 07-02 mirror (268 files). Four things changed that touch us:
+
+1. **NEW Production gate — `WF | Gate | CrewConfirmed`** (`workflow/01-gates/tf-to-dt/gate-crew-confirmed.md`, Published). TF→DT, trigger Opportunity Changed: `tf_crew_confirmed=Yes AND dt_crew_confirmed empty → stamp dt_crew_confirmed=Now` (write-once, reversible flag). New fields `tf_crew_confirmed` / `dt_crew_confirmed` (registry now 114 fields). **It gates the Ready for Materials (P05) DoD** — crew must be confirmed before P05 completes. ⚠️ **New build item for us:** this is a fresh Production requirement not in our code — a `gate-crew-confirmed` handler (same shape as `gate-work-started`) AND likely a P05→P10 / Ready-for-Materials condition. Production is otherwise fully migrated, so this is the one net-new Production gap. (Verify the live field key before building — measurement-report precedent.)
+
+2. **Custom-objects model refined (party model, Bill 06-30):** **Insurance Agent** and **Mortgagee** are now **reference fields on the policyholder Contact** (`seg_insurance_agent_name`, `seg_insurance_agent_phone`, `seg_mortgagee_name`, `seg_has_mortgagee`) — **NOT** Contact records or associations. Rule: only parties the contractor CRM-messages are Contacts (**Homeowner** + **Adjuster**); **Carrier** = Company association; **Agent + Mortgagee** = reference fields. Minor update to `docs/custom-objects-incorporation-plan.md` (agent isn't an association to read — it's a plain Contact field). Mortgagee drives a closeout endorsement (Punch #28).
+
+3. **NEW `docs/code-project/migration/clean-break-SOP.md`** (DRAFT, pending Bill). The runbook for retiring Opportunity claim fields → custom objects. Key points: **engine is the system of logic, GHL a thin trigger+display; clean break, NO dual-path; no live customers → no data migration** (build+test in the build account, then clone). Roles: **Dhruv = Track B (engine readers/movers/ingestion + GHL API outbound)**. Phases 0–3 (docs) run now; 4–6 (build/cutover/retire) gated on engine delivery (us). Note: its "no dual-path" is about the end-state single source — our plan's transition read-fallback is still fine as a *build tactic*, but the target is clean single-source.
+
+4. **NEW `engine/capture-api/`** (code app: `main.py`, `ghl_client.py`, `config.py`, …) + `document-intake/capture-app-v0.md` — the document-capture component being built in code. Reference only; not our repo.
+
+**Net for us:** one concrete new build item (**`gate-crew-confirmed`** + P05 DoD) independent of the custom-objects work; a small refinement to the custom-objects plan (agent/mortgagee are Contact fields, not associations); and confirmation the clean-break migration is the intended path with us owning Track B. Nothing breaks; sequencing law still protects the legacy fields.
