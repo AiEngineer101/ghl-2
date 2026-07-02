@@ -185,6 +185,34 @@ async def debug_co_probe(
     return {"location": loc, "probes": probes}
 
 
+@app.get("/debug/claim-view/{opp_id}")
+async def debug_claim_view(opp_id: str) -> dict[str, Any]:
+    """Read-only: what the enrichment + revenue rollup WOULD produce for an opp.
+
+    Fetches the opp's linked Insurance Claim / Change Orders / Supplements, then shows the
+    mapped identity fields + the computed money rollup. Wired into NOTHING live (the Sales
+    movers are active — we must not feed them unvalidated claim data). Purely an on-demand view
+    to validate the enrichment/rollup logic once real claims exist.
+    """
+    import custom_object_reader as cor
+    import custom_objects as co
+
+    try:
+        claim = await cor.get_claim_for_opp(opp_id)
+        cos = await cor.get_change_orders_for_opp(opp_id)
+        supps = await cor.get_supplements_for_opp(opp_id)
+    except Exception as exc:  # noqa: BLE001 — diagnostic
+        return {"opp_id": opp_id, "error": repr(exc)}
+    return {
+        "opp_id": opp_id,
+        "claim": claim,
+        "change_orders": cos,
+        "supplements": supps,
+        "enriched_identity_fields": co.claim_identity_fields(claim["fields"]) if claim else {},
+        "revenue_rollup": co.revenue_rollup(supps, cos),
+    }
+
+
 @app.get("/healthz")
 async def healthz() -> dict[str, Any]:
     return {

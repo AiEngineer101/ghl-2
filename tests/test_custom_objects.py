@@ -86,3 +86,53 @@ def test_top_level_fallback_strips_system_keys():
 def test_record_fields_non_dict():
     assert co.record_fields(None) == {}
     assert co.record_fields("nope") == {}
+
+
+# --- claim_identity_fields (spec-based mapping; keys unverified live) ---
+
+def test_claim_identity_maps_number_and_scope():
+    out = co.claim_identity_fields({"claim_number": "0123-AB", "dt_insurance_scope_received": "2026-07-01"})
+    assert out == {"seg_insurance_claim_number": "0123-AB", "dt_insurance_scope_received": "2026-07-01"}
+
+
+def test_claim_identity_skips_blank_and_non_dict():
+    assert co.claim_identity_fields({"claim_number": "", "dt_insurance_scope_received": None}) == {}
+    assert co.claim_identity_fields(None) == {}
+
+
+def test_claim_identity_excludes_carrier_and_payment():
+    # carrier (association) + payment/contract (rollup) are intentionally NOT mapped here
+    out = co.claim_identity_fields({"claim_number": "X", "amt_acv": "5000", "amt_deductible": "1000"})
+    assert out == {"seg_insurance_claim_number": "X"}
+
+
+# --- revenue_rollup (data-model §9) ---
+
+def _supp(approved=0, received=0):
+    return {"id": "s", "fields": {"amt_supplement_approved": approved, "amt_supplement_received": received}}
+
+
+def _co(amount=0, treatment="Customer Pays (Billable)"):
+    return {"id": "c", "fields": {"amt_change_order_approved": amount, "seg_change_order_treatment": treatment}}
+
+
+def test_rollup_sums_supplements_and_billable_cos():
+    r = co.revenue_rollup(
+        [_supp(approved=1000, received=600), _supp(approved="2,000", received="$500")],
+        [_co(amount=300), _co(amount=999, treatment="Crew Chargeback")],  # non-billable excluded
+    )
+    assert r["supplements_approved_total"] == 3000.0
+    assert r["supplements_received_total"] == 1100.0
+    assert r["billable_change_orders_total"] == 300.0
+    assert r["rollup_contract_value_contribution"] == 3300.0
+    assert r["rollup_funds_received_contribution"] == 1100.0
+
+
+def test_rollup_empty_inputs():
+    r = co.revenue_rollup(None, None)
+    assert r["supplements_count"] == 0 and r["rollup_contract_value_contribution"] == 0.0
+
+
+def test_rollup_ignores_non_numeric_money():
+    r = co.revenue_rollup([_supp(approved="n/a", received="")], [])
+    assert r["supplements_approved_total"] == 0.0
